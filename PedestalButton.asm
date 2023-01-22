@@ -110,16 +110,7 @@ macro SwitchAction()
 				RTS
 		.CustomTriggersToggle
 			if !sa1 != 0
-				;Because we are working with WRAM at bank $7F ($7FC0FC), in SA-1, this isn't accessible.
-					LDA.b #..WramAccess
-					STA $0183
-					LDA.b #..WramAccess>>8
-					STA $0184
-					LDA.b #..WramAccess>>16
-					STA $0185
-					..WaitForSnesMode
-						LDA $018A
-						BEQ ..WaitForSnesMode
+				%invoke_snes(..WramAccess)
 				..WramAccess
 			endif
 			
