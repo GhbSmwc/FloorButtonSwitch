@@ -15,8 +15,7 @@
 ; $0A = Palette 5 (LM row number $0D)
 ; $0C = Palette 6 (LM row number $0E)
 ; $0E = Palette 7 (LM row number $0F)
-;extra_byte_3: Not used but you can use this as a Lunar Magic-configured value
-; to reuse this sprite for different switch action (see macro below).
+;extra_byte_3: Custom switch action (see macro below).
 
 ;Settings
  !GFXTile = $00				;>tile to display when button not pressed (use only $00-$FF)
@@ -27,6 +26,11 @@
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
  !SFX_SoundNumb = $0B		;>Sound effect number
  !SFX_Port = $1DF9		;>Use only $1DF9, $1DFA, or $1DFB. 
+
+ ;Misc settings
+  ;P-switch mode
+   !NoMusic = 0			;>0 = Allow p-switch music, 1 = no (if you've using AddmusicK and disabled the P-switch music)
+   !ScreenShake = $20		;>0 = no, any number = yes and how long, in frames
 
 ;Sprite table defines
  ;Best not to modify
@@ -131,6 +135,14 @@ macro SwitchAction()
 endmacro
 
 Print "INIT ",pc
+	;Sprites appear 1 pixel lower than their original Y position.
+	LDA !D8,x
+	SEC
+	SBC #$01
+	STA !D8,x
+	LDA !14D4,x
+	SBC #$00
+	STA !14D4,x
 	RTL
 
 Print "MAIN ",pc
@@ -180,24 +192,26 @@ Pressible:
 			STA $08				;/
 			STZ $02				;>override Width to be 0 (this basically makes Player's hitbox a vertical line)
 		;Sprite clipping (Box A)
-			LDA !E4,x		;\X position
-			;CLC			;|
-			;ADC #$04		;|
-			STA $04			;|
-			LDA !14E0,x		;|
-			;ADC #$00		;|
-			STA $0A			;/
-			LDA !D8,x		;\Y position
-			CLC			;|
-			ADC #$08		;|
-			STA $05			;|
-			LDA !14D4,x		;|
-			ADC #$00		;|
-			STA $0B			;/
-			LDA #$0F		;\Width (must be 15px, not 16, due to hitboxes count as colliding if they are edge to edge touching but not overlapping)
-			STA $06			;/
-			LDA #$10		;\Height
-			STA $07			;/
+		;-When extra_byte_4 is $00, it is a 15x16, being a half-16x16 block lower to allow activating while inderneith this sprite
+		;-When extra_byte_4 is $01, it is a 15x16, being centered with the sprite, suitable for 1-block high cooridors and you do not
+		; want your sprite to be activatable from underneath it as small Mario.
+			LDA !E4,x			;\X position
+			STA $04				;|
+			LDA !14E0,x			;|
+			STA $0A				;/
+			LDA !extra_byte_4,x		;\LDY $xxxxxx,x does not exist
+			TAY				;/
+			LDA !D8,x			;\Y position
+			CLC				;|
+			ADC SwitchHitboxYOffset,y	;|
+			STA $05				;|
+			LDA !14D4,x			;|
+			ADC #$00			;|
+			STA $0B				;/
+			LDA #$0F			;\Width (must be 15px, not 16, due to hitboxes count as colliding if they are edge to edge touching but not overlapping)
+			STA $06				;/
+			LDA #$10			;\Height
+			STA $07				;/
 		;Contact?
 			JSL $03B72B		;>Check if A and B touching?
 			BCC .No
@@ -218,6 +232,9 @@ Pressible:
 			STA !ButtonState,x
 	.No
 	RTS				;
+	SwitchHitboxYOffset:
+		db $08
+		db $00
 ;-------------------------------------------------------------------------------------------------
 PressedPopLater:
 	LDX $15E9|!addr			;>Current sprite index (in some cases, better than PHX, <use X for something else>, PLX)

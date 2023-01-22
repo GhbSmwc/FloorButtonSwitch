@@ -15,8 +15,7 @@
 ; $0A = Palette 5 (LM row number $0D)
 ; $0C = Palette 6 (LM row number $0E)
 ; $0E = Palette 7 (LM row number $0F)
-;extra_byte_3: Not used but you can use this as a Lunar Magic-configured value
-; to reuse this sprite for different switch action (see macro below).
+;extra_byte_3: Custom switch action (see macro below).
 
 ;Settings
  !Tile_ButtonCap = $02			;>tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
@@ -142,6 +141,14 @@ macro SwitchAction()
 endmacro
 
 Print "INIT ",pc
+	;Sprites appear 1 pixel lower than their original Y position.
+	LDA !D8,x
+	SEC
+	SBC #$01
+	STA !D8,x
+	LDA !14D4,x
+	SBC #$00
+	STA !14D4,x
 	RTL
 
 Print "MAIN ",pc
@@ -180,6 +187,9 @@ Pressible:
 	BEQ .No				;/
 	;Check if player is in the button's hitbox.
 	;Prevents you from activating both by standing in between when 2 are side by side.
+	;Works like this: Mario's hitbox is a vertical line centered on his 16x32 or 16x16 sprite that have a vertical length
+	;the same as his height.
+	;Hitboxes are adjusted so that Mario's hitbox cannot touch 2 side-by-side switches at once and trigger both.
 		;Mario clipping (Box B)
 			JSL $03B664
 			LDA $94				;\override X position
@@ -191,24 +201,18 @@ Pressible:
 			STA $08				;/
 			STZ $02				;>override Width to be 0 (this basically makes Player's hitbox a vertical line)
 		;Sprite clipping (Box A)
-			LDA !E4,x		;\X position
-			;CLC			;|
-			;ADC #$04		;|
-			STA $04			;|
-			LDA !14E0,x		;|
-			;ADC #$00		;|
-			STA $0A			;/
-			LDA !D8,x		;\Y position
-			CLC			;|
-			ADC #$08		;|
-			STA $05			;|
-			LDA !14D4,x		;|
-			ADC #$00		;|
-			STA $0B			;/
-			LDA #$0F		;\Width (must be 15px, not 16, due to hitboxes count as colliding if they are edge to edge touching but not overlapping)
-			STA $06			;/
-			LDA #$10		;\Height
-			STA $07			;/
+			LDA !E4,x			;\X position
+			STA $04				;|
+			LDA !14E0,x			;|
+			STA $0A				;/
+			LDA !D8,x			;\Y position
+			STA $05				;|
+			LDA !14D4,x			;|
+			STA $0B				;/
+			LDA #$0F			;\Width (must be 15px, not 16, due to hitboxes count as colliding if they are edge to edge touching but not overlapping)
+			STA $06				;/
+			LDA #$10			;\Height
+			STA $07				;/
 		;Contact?
 			JSL $03B72B		;>Check if A and B touching?
 			BCC .No
