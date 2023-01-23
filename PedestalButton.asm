@@ -24,7 +24,7 @@
  !GFXPage = 1				;>0 = Page 0, 1 = page 1 (don't use any other values).
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
  
- !Button_NotPressedOffset = $05		;>Y position (relative to sprite's origin) of button cap when not pressed
+ !Button_NotPressedOffset = $04		;>Y position (relative to sprite's origin) of button cap when not pressed
  !Button_PressedOffset = $07		;>Y position (relative to sprite's origin) of button cap when pressed
  
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
@@ -262,28 +262,37 @@ HandleGFX:
 	;a "not-pressed" and "pressed" graphic rather a moving OAM tile in relation
 	;to the origin of the sprite
 	%GetDrawInfo()			;
-	
+	;($03xx+(SlotOffset*4))
+	;SlotOffset = 0: Pedestal left half
+	;SlotOffset = 1: Pedestal right half
+	;SlotOffset = 2: Button cap left half
+	;SlotOffset = 3: Button cap right half
 	;Pedestal
 		LDA $00				;\X position
+		STA.w ($0300+(0*4))|!Base2,y	;|>Left half
 		CLC				;|
-		ADC #$04			;|
-		STA $0300|!Base2,y		;/
+		ADC #$08			;|
+		STA.w ($0300+(1*4))|!Base2,y	;/>Right half
 		LDA $01				;\Y position
 		CLC				;|
 		ADC #$08			;|
-		STA $0301|!Base2,y		;/
+		STA.w ($0301+(0*4))|!Base2,y	;|>Left half
+		STA.w ($0301+(1*4))|!Base2,y	;/>Right half
 		LDA #!Tile_Pedestal		;\Tile
-		STA $0302|!Base2,y		;/
+		STA.w ($0302+(0*4))|!Base2,y	;|>Left half
+		STA.w ($0302+(1*4))|!Base2,y	;/>Right half
 		LDA !extra_byte_2,x		;>Palette as extra byte 2
 		AND.b #%00001110		;>Ignore XY flips, page (forcibly set to 0 or 1), and priority
 		ORA.b #(%00100000|!GFXPage)	;>Force only some bits of the PP to be set (should not appear behind layers without priority.)
-		STA $0303|!Base2,y		;>Tile properties (YXPPCCCT)
-		INY #4				;>Next OAM entry
+		STA.w ($0303+(0*4))|!Base2,y	;\Properties ;>Left half
+		ORA.b #%01000000		;|X-flip it
+		STA.w ($0303+(1*4))|!Base2,y	;/>Right half
 	;Button cap
-		LDA $00				;\X position
+		LDA $00				;\X position (left half)
+		STA.w ($0300+(2*4))|!Base2,y	;|
 		CLC				;|
-		ADC #$04			;|
-		STA $0300|!Base2,y		;/
+		ADC #$08			;|
+		STA.w ($0300+(3*4))|!Base2,y	;/>X position (right half)
 		;Y position, depending on pressed state
 			PHX					;\Y position
 			LDA !ButtonState,x			;|
@@ -291,17 +300,21 @@ HandleGFX:
 			LDA $01					;|
 			CLC					;|
 			ADC ButtonYpositonPressedState,x	;|
-			STA $0301|!Base2,y			;|
+			STA.w ($0301+(2*4))|!Base2,y		;|>Left half
+			STA.w ($0301+(3*4))|!Base2,y		;|>Right half
 			PLX					;/
 		LDA #!Tile_ButtonCap			;\Tile
-		STA $0302|!Base2,y			;/
+		STA.w ($0302+(2*4))|!Base2,y		;|>Left half
+		STA.w ($0302+(3*4))|!Base2,y		;/>Right half
 		LDA !extra_byte_2,x		;>Palette as extra byte 2
 		AND.b #%00001110		;>Ignore XY flips, page (forcibly set to 0 or 1), and priority
 		ORA.b #(%00100000|!GFXPage)	;>Force only some bits of the PP to be set (should not appear behind layers without priority.)
-		STA $0303|!Base2,y		;>Tile properties (YXPPCCCT)
+		STA.w ($0303+(2*4))|!Base2,y	;\Properties ;>Left half
+		ORA.b #%01000000		;|X-flip it
+		STA.w ($0303+(3*4))|!Base2,y	;/>Right half
 
 	LDY #$00			;tile size = 8x8
-	LDA #$01			;tiles to display = 1
+	LDA #$03			;tiles to display minus 1 = 3 (4 tiles, minus 1 = 3)
 	JSL $01B7B3|!BankB		;
 	RTS				;
 	
