@@ -168,14 +168,25 @@ Button:
 	BNE .Done			;
 	
 	.RunMain
-		LDA !ButtonState,x		;\If switch isn't temporally pressed down, skip
-		CMP #$01			;|
-		BNE .NoPop			;/
-		LDA !ButtonPressedTimer,x	;\If timer runs out, revert switch
-		BNE .NoPop			;|
-		STZ !ButtonState,x		;/
+		;Switch pop back out check
+			
+			LDA !ButtonState,x		;\If switch isn't temporally pressed down, skip
+			CMP #$01			;|
+			BNE .NoPop			;/
+			LDA !extra_byte_1,x
+			AND.b #%00000010
+			BNE .SkipPlayerHoldingItDown	;>If switch requires D-pad pressing down, allow switch to pop back out even if player is touching it
+			JSL $03B664|!BankB		;>Get player hitbox info (clipping B)
+			JSL $03B69F|!BankB		;>Get sprite hitbox info (clipping A)
+			JSL $03B72B|!BankB		;>Check contact
+			BCS .NoPop			;>If player is inside the switch, don't allow it to pop (when set to activate without pressing down on D-pad)
+			
+			.SkipPlayerHoldingItDown
+			LDA !ButtonPressedTimer,x	;\If timer runs out, revert switch
+			BNE .NoPop			;|
+			STZ !ButtonState,x		;/
+			.NoPop
 		
-		.NoPop
 		LDA !D8,x		;Temporary move the sprite so that the solid hitbox ($01B44F) account for the moved button cap
 		PHA
 		LDA !14D4,x
@@ -193,7 +204,7 @@ Button:
 		
 		LDA !extra_byte_1,x
 		BIT.b #%00000010
-		BNE .NoDownNeeded	;>If D flag set, player can activate switch by touching the top without need to press down
+		BEQ .NoDownNeeded	;>If D flag set, player can activate switch by touching the top without need to press down
 		LDA $16
 		BIT.b #%00000100
 		BEQ .NotPressingSwitch	;>If not pressing down, skip
