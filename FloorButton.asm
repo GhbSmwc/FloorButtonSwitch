@@ -167,7 +167,7 @@ Button:
 	LDA $9D				;freeze flag
 	;BNE .Done			;
 	BEQ +
-	RTL
+	RTS
 	+
 	
 	.RunMain
