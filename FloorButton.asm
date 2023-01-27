@@ -165,7 +165,10 @@ Button:
 	%SubOffScreen()			
 	JSR HandleGFX			;Handle graphics
 	LDA $9D				;freeze flag
-	BNE .Done			;
+	;BNE .Done			;
+	BEQ +
+	RTL
+	+
 	
 	.RunMain
 		;Switch pop back out check
@@ -173,8 +176,8 @@ Button:
 			LDA !ButtonState,x		;\If switch isn't temporally pressed down, skip
 			CMP #$01			;|
 			BNE .NoPop			;/
-			LDA !extra_byte_1,x
-			AND.b #%00000010
+			LDA !extra_byte_1,x		;\If set to allow pressing without the Dpad, skip (this would allow player to use the switch without having to get off of it)
+			AND.b #%00000010		;/
 			BNE .SkipPlayerHoldingItDown	;>If switch requires D-pad pressing down, allow switch to pop back out even if player is touching it
 			JSL $03B664|!BankB		;>Get player hitbox info (clipping B)
 			JSL $03B69F|!BankB		;>Get sprite hitbox info (clipping A)
@@ -197,6 +200,42 @@ Button:
 		ADC ButtonYpositonPressedState,y
 		STA !D8,x
 		
+		;This is a workaround bypassing a clipping glitch with smw's $01B44F that:
+		;-If you crouch-slide as small mario into the side of the switch
+		;-If you are big mario and go into the side of the switch
+		;The sprite will fail to place mario on top of the switch
+			LDA !ButtonState,x				;\Apply the snapping only if the switch is not pressed
+			BNE .NoClipFix					;/
+			LDA $7D						;\If player going upward, don't boost him
+			BMI .NoClipFix					;/
+			;Sprite clipping (the button cap), box A
+				JSL $03B69F|!BankB			;>Sprite clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
+				LDA #$08				;\Modify its height
+				STA $07					;/
+			;Mario clipping (16x8 area of his feet), box B
+				JSL $03B664|!BankB			;>Mario clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
+				LDY $187A				;>Riding yoshi flag (player is about 3 blocks tall, adds a length of 16 pixel underneath)
+				STA $03					;>Modify height of player's hitbox (not that hitbox extends down and right), so we need to...
+				LDA $96					;\Move his box Y position (from the info obtained from $03B664)
+				CLC					;|
+				ADC PlayerFeetOffset,y			;|
+				STA $01					;|
+				LDA $97					;|
+				CLC					;|
+				ADC #$00				;|
+				STA $09					;/
+			;Contact
+				JSL $03B72B|!BankB			;\If not touching, don't snap Y position
+				BCC .NoClipFix				;/
+			;Place player on top of switch
+				LDA !D8,x
+				SEC
+				SBC PlayerOnTopOfSwitchYPos,y
+				STA $96
+				LDA !14D4,x
+				SBC #$00
+				STA $97
+		.NoClipFix
 		JSL $01B44F|!BankB	;>Solid sprite subroutine
 		BCC .NotPressingSwitch	;>If not even touching switch, skip
 		LDA !ButtonState,x
@@ -237,6 +276,15 @@ Button:
 	.Done
 		RTS
 	%SwitchAction()
+	
+	PlayerFeetOffset:
+		db $18		;>Not on yoshi
+		db $28		;\On yoshi
+		db $28		;/
+	PlayerOnTopOfSwitchYPos:
+		db $20		;>Not on yoshi
+		db $30		;\On yoshi
+		db $30		;/
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ;Graphics routine
