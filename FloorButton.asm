@@ -29,6 +29,8 @@
  !Button_NotPressedOffset = $02		;>Y position (relative to sprite's origin) of button cap when not pressed
  !Button_PressedOffset = $07		;>Y position (relative to sprite's origin) of button cap when pressed
  
+ !Held_Down_Function = 0		;>0 = No, 1 = include code that runs every frame while the switch is pressed (see "SwitchActionHeldDown")
+ 
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
  !SFX_SoundNumb = $0B		;>Sound effect number
  !SFX_Port = $1DF9		;>Use only $1DF9, $1DFA, or $1DFB.
@@ -40,7 +42,7 @@
 
 ;Sprite table defines
  ;Best not to modify
-  !ButtonState = !1534
+  !ButtonState = !1534		;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
   !ButtonPressedTimer = !1540
  ;Feel free to modify these
   !FrozenTile = $0165 ;>Tile that turns the tile into when touching liquids.
@@ -141,6 +143,12 @@ macro SwitchAction()
 				db %01000000
 				db %10000000
 endmacro
+if !Held_Down_Function != 0
+	macro SwitchActionHeldDown()
+		SwitchActionHeldDown:
+		RTS
+	endmacro
+endif
 
 Print "INIT ",pc
 	;Sprites appear 1 pixel lower than their original Y position.
@@ -272,11 +280,19 @@ Button:
 		STA !14D4,x		;|
 		PLA			;|
 		STA !D8,x		;/
-
+		if !Held_Down_Function != 0
+			LDA !ButtonState,x
+			CMP #$01
+			BNE .Done
+			;Switch function when button is held down:
+				JSR SwitchActionHeldDown
+		endif
 	.Done
 		RTS
 	%SwitchAction()
-	
+	if !Held_Down_Function != 0
+		%SwitchActionHeldDown()
+	endif
 	PlayerFeetOffset:
 		db $18		;>Not on yoshi
 		db $28		;\On yoshi
