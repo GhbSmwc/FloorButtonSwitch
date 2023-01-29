@@ -5,9 +5,15 @@
 
 ;Modified to act as a wall button
 ;sprite by HammerBrother.
-;extra_byte_1: Switch itself behavior: 000000DP
-;-P = permanent flag: 0 = Can press again, 1 = pressed permanently.
+;extra_byte_1: bitwise information %00000BDP
+;-P = permanent flag: 0 = Can press again, 1 = pressed permanently
+; (resets if offscreen unless you modify the init routine to read
+; a RAM to determine if !ButtonState should initially hold the value of $02).
 ;-D = Require pressing down on D-pad: 0 = no, 1 = yes
+;-B = Base of switch in front of layer 1 flag: 0 = behind, 1 = in front (but
+; behind tiles with priority). Have this set to 1 if you plan on having the
+; switch in front of decoration tiles to avoid the switch cap from being
+; masked (cut off) by the behind-the-foreground switch base.
 ;extra_byte_2: color for YXPPCCCT:
 ; $00 = Palette 0 (LM row number $08)
 ; $02 = Palette 1 (LM row number $09)
@@ -44,6 +50,7 @@
  ;Best not to modify
   !ButtonState = !1534		;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
   !ButtonPressedTimer = !1540
+  !SwitchBasePriority = %00100000	;>This to force switch base in front of layer 1 when extra_byte_1's B bit is set (should have all bits 0 except bits 5 and 6).
  ;Feel free to modify these
   !FrozenTile = $0165 ;>Tile that turns the tile into when touching liquids.
 
@@ -343,6 +350,18 @@ HandleGFX:
 		STA.w ($0303+(0*4))|!Base2,y	;\Properties ;>Left half
 		ORA.b #%01000000		;|X-flip it
 		STA.w ($0303+(1*4))|!Base2,y	;/>Right half
+		LDA !extra_byte_1,x
+		BIT.b #%00000100
+		BEQ .NotInFront
+		LDA.w ($0303+(0*4))|!Base2,y	;\Force base of switch in front of layer 1 (anti-masking to avoid cap being cut off when cap is in front of decoration tiles)
+		AND.b #%11001111		;|
+		ORA.b #!SwitchBasePriority	;|
+		STA.w ($0303+(0*4))|!Base2,y	;|
+		LDA.w ($0303+(1*4))|!Base2,y	;|
+		AND.b #%11001111		;|
+		ORA.b #!SwitchBasePriority	;|
+		STA.w ($0303+(1*4))|!Base2,y	;/
+		.NotInFront
 	;Button cap
 		LDA $00				;\X position (left half)
 		STA.w ($0300+(2*4))|!Base2,y	;|
