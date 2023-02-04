@@ -46,10 +46,13 @@
    !NoMusic = 0			;>0 = Allow p-switch music, 1 = no (if you've using AddmusicK and disabled the P-switch music)
    !ScreenShake = $20		;>0 = no, any number = yes and how long, in frames
 
-;Sprite table defines
+;Sprite defines
  ;Best not to modify
-  !ButtonState = !1534		;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
-  !ButtonPressedTimer = !1540
+  ;Sprite tables
+   !ButtonState = !1534		;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
+   !ButtonPressedTimer = !1540	;>Timer for when the switch is temporally pressed before popping back out (measured when the button cap starts moving downwards, not when it reaches the bottom)
+   !ButtonCapOffset = !1504	;>How far down the switch moved.
+  ;Other
   !SwitchBasePriority = %00100000	;>This to force switch base in front of layer 1 when extra_byte_1's B bit is set (should have all bits 0 except bits 5 and 6).
  ;Feel free to modify these
   !FrozenTile = $0165 ;>Tile that turns the tile into when touching liquids.
@@ -204,16 +207,36 @@ Button:
 			BNE .NoPop			;|
 			STZ !ButtonState,x		;/
 			.NoPop
+		;Switch cap moves vertically check
+			LDA !ButtonState,x
+			BNE .MoveDown
+			
+			.MoveUp
+				LDA !ButtonCapOffset,x
+				BEQ .NoMove
+				DEC
+				STA !ButtonCapOffset,x
+				BRA .NoMove
+			.MoveDown
+				LDA !ButtonCapOffset,x
+				CMP #$05
+				BCS .NoMove
+				INC
+				STA !ButtonCapOffset,x
+				.NoMove
 		
 		LDA !D8,x		;Temporary move the sprite so that the solid hitbox ($01B44F) account for the moved button cap
 		PHA
 		LDA !14D4,x
 		PHA
-		LDY !ButtonState,x
-		LDA !D8,x
-		CLC
-		ADC ButtonYpositonPressedState,y
-		STA !D8,x
+		
+		LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
+		CLC				;|
+		ADC !ButtonCapOffset,x		;|
+		STA !D8,x			;|
+		LDA !14D4,x			;|
+		ADC #$00			;|
+		STA !14D4,x			;/
 		
 		;This is a workaround bypassing a clipping glitch with smw's $01B44F that:
 		;-If you crouch-slide as small mario into the side of the switch
@@ -224,11 +247,11 @@ Button:
 			LDA $7D						;\If player going upward, don't boost him
 			BMI .NoClipFix					;/
 			;Sprite clipping (the button cap), box A
-				JSL $03B69F|!BankB			;>Sprite clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
+				JSL $03B69F|!BankB			;>Get sprite clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDA #$08				;\Modify its height
 				STA $07					;/
 			;Mario clipping (16x8 area of his feet), box B
-				JSL $03B664|!BankB			;>Mario clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
+				JSL $03B664|!BankB			;>Get Mario clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDY $187A				;>Riding yoshi flag (player is about 3 blocks tall, adds a length of 16 pixel underneath)
 				STA $03					;>Modify height of player's hitbox (not that hitbox extends down and right), so we need to...
 				LDA $96					;\Move his box Y position (from the info obtained from $03B664)
@@ -243,18 +266,25 @@ Button:
 				JSL $03B72B|!BankB			;\If not touching, don't snap Y position
 				BCC .NoClipFix				;/
 			;Place player on top of switch
-				LDA !D8,x
-				SEC
-				SBC PlayerOnTopOfSwitchYPos,y
-				STA $96
-				LDA !14D4,x
-				SBC #$00
-				STA $97
+				LDA !D8,x				;\Snap player Y position
+				SEC					;|
+				SBC PlayerOnTopOfSwitchYPos,y		;|
+				STA $96					;|
+				LDA !14D4,x				;|
+				SBC #$00				;|
+				STA $97					;|
+				LDA $96					;|
+				CLC					;|
+				ADC !ButtonCapOffset,x			;|
+				STA $96					;|
+				LDA $97					;|
+				ADC #$00				;|
+				STA $97					;/
 		.NoClipFix
 		JSL $01B44F|!BankB	;>Solid sprite subroutine
 		BCC .NotPressingSwitch	;>If not even touching switch, skip
 		LDA !ButtonState,x
-		BNE .AlreadyPressed	;>If switch pressed, don't allow player triggering it
+		BNE .AlreadyPressed	;>If switch pressed, don't allow player to re-trigger it
 		
 		LDA !extra_byte_1,x
 		BIT.b #%00000010
@@ -369,15 +399,11 @@ HandleGFX:
 		ADC #$08			;|
 		STA.w ($0300+(3*4))|!Base2,y	;/>X position (right half)
 		;Y position, depending on pressed state
-			PHX					;\Y position
-			LDA !ButtonState,x			;|
-			TAX					;|
-			LDA $01					;|
+			LDA $01					;\Y position
 			CLC					;|
-			ADC ButtonYpositonPressedState,x	;|
+			ADC !ButtonCapOffset,x			;|
 			STA.w ($0301+(2*4))|!Base2,y		;|>Left half
-			STA.w ($0301+(3*4))|!Base2,y		;|>Right half
-			PLX					;/
+			STA.w ($0301+(3*4))|!Base2,y		;/>Right half
 		LDA #!Tile_ButtonCap			;\Tile
 		STA.w ($0302+(2*4))|!Base2,y		;|>Left half
 		STA.w ($0302+(3*4))|!Base2,y		;/>Right half
@@ -392,8 +418,3 @@ HandleGFX:
 	LDA #$03			;tiles to display minus 1 = 3 (4 tiles, minus 1 = 3)
 	JSL $01B7B3|!BankB		;
 	RTS				;
-	
-	ButtonYpositonPressedState:
-	db !Button_NotPressedOffset-2		;>Non pressed state
-	db !Button_PressedOffset-2		;>pressed (pop back out under a timer)
-	db !Button_PressedOffset-2		;>pressed (permanent)
