@@ -37,6 +37,8 @@
  
  !Held_Down_Function = 0		;>0 = No, 1 = include code that runs every frame while the switch is pressed (see "SwitchActionHeldDown")
  
+ !ButtonDownSpeed = $0080		;>How fast the button cap moves down when pressed, in 1/256th of a pixel per frame ($0080 is 128/256, or 0.5 pixel per frame)
+ !ButtonUpSpeed = $0080			;>Same as above but when rising back up.
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
  !SFX_SoundNumb = $0B		;>Sound effect number
  !SFX_Port = $1DF9		;>Use only $1DF9, $1DFA, or $1DFB.
@@ -49,9 +51,10 @@
 ;Sprite defines
  ;Best not to modify
   ;Sprite tables
-   !ButtonState = !1534		;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
-   !ButtonPressedTimer = !1540	;>Timer for when the switch is temporally pressed before popping back out (measured when the button cap starts moving downwards, not when it reaches the bottom)
-   !ButtonCapOffset = !1504	;>How far down the switch moved.
+   !ButtonState = !1534			;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
+   !ButtonPressedTimer = !1540		;>Timer for when the switch is temporally pressed before popping back out (measured when the button cap starts moving downwards, not when it reaches the bottom)
+   !ButtonCapOffset = !1504		;>How far down the switch moved, in pixels.
+   !ButtonCapOffsetFixedPoint = !14EC	;>Same as above but contains fraction bits (allow movement less than a pixel -- this is only used when $01ABCC or any speed-to-position-offset subroutine is called)
   ;Other
   !SwitchBasePriority = %00100000	;>This to force switch base in front of layer 1 when extra_byte_1's B bit is set (should have all bits 0 except bits 5 and 6).
  ;Feel free to modify these
@@ -214,14 +217,24 @@ Button:
 			.MoveUp
 				LDA !ButtonCapOffset,x
 				BEQ .NoMove
-				DEC
+				LDA !ButtonCapOffsetFixedPoint,x
+				SEC
+				SBC.b #!ButtonUpSpeed
+				STA !ButtonCapOffsetFixedPoint,x
+				LDA !ButtonCapOffset,x
+				SBC.b #!ButtonUpSpeed>>8
 				STA !ButtonCapOffset,x
 				BRA .NoMove
 			.MoveDown
 				LDA !ButtonCapOffset,x
 				CMP #$05
 				BCS .NoMove
-				INC
+				LDA !ButtonCapOffsetFixedPoint,x
+				CLC
+				ADC.b #!ButtonDownSpeed
+				STA !ButtonCapOffsetFixedPoint,x
+				LDA !ButtonCapOffset,x
+				ADC.b #!ButtonDownSpeed>>8
 				STA !ButtonCapOffset,x
 				.NoMove
 		
