@@ -33,7 +33,7 @@
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
  
  !Button_NotPressedOffset = $02		;>Y position (relative to sprite's origin) of button cap when not pressed
- !Button_PressedOffset = $07		;>Y position (relative to sprite's origin) of button cap when pressed
+ !Button_PressedOffset = $05		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressing.
  
  !Held_Down_Function = 0		;>0 = No, 1 = include code that runs every frame while the switch is pressed (see "SwitchActionHeldDown")
  
@@ -227,12 +227,22 @@ Button:
 			SEP #$20
 		
 		;Switch cap moves vertically check
+			wdm
 			LDA !ButtonState,x
 			BNE .MoveDown
 			
 			.MoveUp
+				LDA #!Button_NotPressedOffset		;\If top limit is above the switch cap's position, (or cap is below the limit), move upwards
+				CMP !ButtonCapOffset,x			;|
+				BMI ..MoveUp				;/
+				STA !ButtonCapOffset,x			;>Otherwise set its position at the limit
+				BRA .MoveDone
+				
+				..MoveUp
 				LDA !ButtonCapOffset,x
-				BEQ .NoMove
+				CMP #!Button_NotPressedOffset
+				BEQ .MoveDone
+				BMI .MoveDone
 				LDA !ButtonCapOffsetFixedPoint,x
 				SEC
 				SBC.b #!ButtonUpSpeed
@@ -240,11 +250,17 @@ Button:
 				LDA !ButtonCapOffset,x
 				SBC.b #!ButtonUpSpeed>>8
 				STA !ButtonCapOffset,x
-				BRA .NoMove
+				BRA .MoveDone
 			.MoveDown
-				LDA !ButtonCapOffset,x
-				CMP #$05
-				BCS .NoMove
+				LDA #!Button_PressedOffset		;\If bottom limit is below switch cap position (or cap is above the bottom limit), move downwards
+				CMP !ButtonCapOffset,x			;|
+				BEQ +					;|>If AT the position, don't vibrate.
+				BPL ..MoveDown				;/
+				+
+				STA !ButtonCapOffset,x			;>Otherwise set its position at the limit
+				BRA .MoveDone
+				
+				..MoveDown
 				LDA !ButtonCapOffsetFixedPoint,x
 				CLC
 				ADC.b #!ButtonDownSpeed
@@ -252,7 +268,7 @@ Button:
 				LDA !ButtonCapOffset,x
 				ADC.b #!ButtonDownSpeed>>8
 				STA !ButtonCapOffset,x
-				.NoMove
+				.MoveDone
 		
 		LDA !D8,x		;Temporary move the sprite so that the solid hitbox ($01B44F) account for the moved button cap
 		PHA
