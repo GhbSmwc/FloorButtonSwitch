@@ -232,17 +232,6 @@ Button:
 			BNE .MoveDown
 			
 			.MoveUp
-				LDA #!Button_NotPressedOffset		;\If top limit is above the switch cap's position, (or cap is below the limit), move upwards
-				CMP !ButtonCapOffset,x			;|
-				BMI ..MoveUp				;/
-				STA !ButtonCapOffset,x			;>Otherwise set its position at the limit
-				BRA .MoveDone
-				
-				..MoveUp
-				LDA !ButtonCapOffset,x
-				CMP #!Button_NotPressedOffset
-				BEQ .MoveDone
-				BMI .MoveDone
 				LDA !ButtonCapOffsetFixedPoint,x
 				SEC
 				SBC.b #!ButtonUpSpeed
@@ -250,17 +239,12 @@ Button:
 				LDA !ButtonCapOffset,x
 				SBC.b #!ButtonUpSpeed>>8
 				STA !ButtonCapOffset,x
-				BRA .MoveDone
-			.MoveDown
-				LDA #!Button_PressedOffset		;\If bottom limit is below switch cap position (or cap is above the bottom limit), move downwards
-				CMP !ButtonCapOffset,x			;|
-				BEQ +					;|>If AT the position, don't vibrate.
-				BPL ..MoveDown				;/
-				+
+				LDA #!Button_NotPressedOffset		;\If top limit is above the switch cap's position, (or cap is below the limit), move upwards
+				CMP !ButtonCapOffset,x			;|(placed here to prevent 1-frame of exceeding limit)
+				BMI .MoveDone				;/
 				STA !ButtonCapOffset,x			;>Otherwise set its position at the limit
 				BRA .MoveDone
-				
-				..MoveDown
+			.MoveDown
 				LDA !ButtonCapOffsetFixedPoint,x
 				CLC
 				ADC.b #!ButtonDownSpeed
@@ -268,6 +252,14 @@ Button:
 				LDA !ButtonCapOffset,x
 				ADC.b #!ButtonDownSpeed>>8
 				STA !ButtonCapOffset,x
+				LDA #!Button_PressedOffset		;\If bottom limit is below switch cap position (or cap is above the bottom limit), move downwards
+				CMP !ButtonCapOffset,x			;|
+				BEQ +					;|>If AT the position, don't vibrate.
+				BPL .MoveDone				;/
+				+
+				STA !ButtonCapOffset,x			;>Otherwise set its position at the limit
+				BRA .MoveDone
+				
 				.MoveDone
 		
 		LDA !D8,x		;Temporary move the sprite so that the solid hitbox ($01B44F) account for the moved button cap
