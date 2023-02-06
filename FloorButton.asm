@@ -210,6 +210,22 @@ Button:
 			BNE .NoPop			;|
 			STZ !ButtonState,x		;/
 			.NoPop
+		;Get previous marioYposition relative to sprite
+			LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
+			CLC				;| (SwitchCapSpriteY = SpriteY + Displacement)
+			ADC !ButtonCapOffset,x		;|
+			STA $00				;|
+			LDA !14D4,x			;|
+			ADC #$00			;|
+			STA $01				;/
+			
+			REP #$20			;\$00-$01: Mario's Y position relative to button cap, previous frame
+			LDA $D3				;| (MarioYRelativePrev = MarioYPrev - SwitchCapSpriteYPrev)
+			SEC				;| Thanks to RAM $D1-$D4 for storing Mario's previous XY.
+			SBC $00				;|
+			STA $00				;/
+			SEP #$20
+		
 		;Switch cap moves vertically check
 			LDA !ButtonState,x
 			BNE .MoveDown
@@ -244,21 +260,35 @@ Button:
 		PHA
 		
 		LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
-		CLC				;|
+		CLC				;| (SwitchCapSpriteY = SpriteY + Displacement)
 		ADC !ButtonCapOffset,x		;|
 		STA !D8,x			;|
 		LDA !14D4,x			;|
 		ADC #$00			;|
 		STA !14D4,x			;/
 		
+		LDA $96			;\$02-$03: Mario's Y position relative to the button cap, after frame of movement
+		SEC			;|(MarioYRelativeCurrent = MarioYCurrent - SwitchCapSpriteYCurrent)
+		SBC !D8,x		;|
+		STA $02			;|
+		LDA $97			;|
+		SBC !14D4,x		;|
+		STA $03			;/
 		;This is a workaround bypassing a clipping glitch with smw's $01B44F that:
 		;-If you crouch-slide as small mario into the side of the switch
 		;-If you are big mario and go into the side of the switch
 		;The sprite will fail to place mario on top of the switch
 			LDA !ButtonState,x				;\Apply the snapping only if the switch is not pressed
 			BNE .NoClipFix					;/
-			LDA $7D						;\If player going upward, don't boost him
-			BMI .NoClipFix					;/
+			;LDA $7D						;\If player going upward, don't boost him
+			;BMI .NoClipFix					;/
+			REP #$20
+			LDA $02						;\Mario's Y position delta relative to the sprite position delta (if negative, player is moving upwards against sprite, 0, player and sprite moving at same pixels per frame, positive, player moves downwards against sprite)
+			SEC						;|Effectively, this is the "speed" (in pixels per frame) of Mario moving against the sprite.
+			SBC $00						;/
+			SEP #$20					;\This is a "platform pass fix": https://www.smwcentral.net/?p=section&a=details&id=13557 - this time, instead of using [MarioXYSpeedRelativeToSprite = MarioXYSpeed - SpriteXYspeed], we do
+			BMI .NoClipFix					;/[MarioXYRelativeToSprite = MarioXYPos - SpriteXYPos] twice, before and after moving the cap up and down. If Mario is moving upwards against, don't apply the set-y-position.
+			
 			;Sprite clipping (the button cap), box A
 				JSL $03B69F|!BankB			;>Get sprite clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDA #$08				;\Modify its height
@@ -369,8 +399,8 @@ HandleGFX:
 	;to the origin of the sprite
 	%GetDrawInfo()			;
 	;($03xx+(SlotOffset*4))
-	;SlotOffset = 0: Pedestal left half
-	;SlotOffset = 1: Pedestal right half
+	;SlotOffset = 0: Base of button left half
+	;SlotOffset = 1: Base of button right half
 	;SlotOffset = 2: Button cap left half
 	;SlotOffset = 3: Button cap right half
 	;Switch base
