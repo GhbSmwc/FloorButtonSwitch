@@ -63,37 +63,51 @@
 
 
 ;Action to perform when switch is pressed.
-;Warning: X register must be restored after this code (become a sprite slot index) is finished to prevent bugs/crash.
-;Can be done via PHX ... PLX or LDX $15E9|!addr (PLX and LDX $15E9|!addr to be perform after done using X for something else)
+;Notes:
+;- X register must be restored after this code (become a sprite slot index) is finished to prevent bugs/crash.
+;  Can be done via PHX ... PLX or LDX $15E9|!addr (PLX and LDX $15E9|!addr to be perform after done using X for something else)
+;- Code must end with RTS, using RTL or not having it exist at all can lead to a crash.
 macro SwitchAction()
 	SwitchAction:
 	;Examples:
 	;!extra_byte_3 values:
-	; -$00 = on/off
-	; -$01 = blue p-switch
-	; -$02 = silver p-switch
-	; -$03 = LM custom trigger $00
-	; -$04 = LM custom trigger $01
-	; -$05 = LM custom trigger $02
-	; -$06 = LM custom trigger $03
-	; -$07 = LM custom trigger $04
-	; -$08 = LM custom trigger $05
-	; -$09 = LM custom trigger $06
-	; -$0A = LM custom trigger $07
-	; -$0B = LM custom trigger $08
-	; -$0C = LM custom trigger $09
-	; -$0D = LM custom trigger $0A
-	; -$0E = LM custom trigger $0B
-	; -$0F = LM custom trigger $0C
-	; -$10 = LM custom trigger $0D
-	; -$11 = LM custom trigger $0E
-	; -$12 = LM custom trigger $0F
+	; -$00 = on/off (2-way toggle)
+	; -$01 = blue p-switch (2-way toggle)
+	; -$02 = silver p-switch (2-way toggle)
+	; -$03 = LM custom trigger $00 (2-way toggle)
+	; -$04 = LM custom trigger $01 (2-way toggle)
+	; -$05 = LM custom trigger $02 (2-way toggle)
+	; -$06 = LM custom trigger $03 (2-way toggle)
+	; -$07 = LM custom trigger $04 (2-way toggle)
+	; -$08 = LM custom trigger $05 (2-way toggle)
+	; -$09 = LM custom trigger $06 (2-way toggle)
+	; -$0A = LM custom trigger $07 (2-way toggle)
+	; -$0B = LM custom trigger $08 (2-way toggle)
+	; -$0C = LM custom trigger $09 (2-way toggle)
+	; -$0D = LM custom trigger $0A (2-way toggle)
+	; -$0E = LM custom trigger $0B (2-way toggle)
+	; -$0F = LM custom trigger $0C (2-way toggle)
+	; -$10 = LM custom trigger $0D (2-way toggle)
+	; -$11 = LM custom trigger $0E (2-way toggle)
+	; -$12 = LM custom trigger $0F (2-way toggle)
+	; -$13 = Set on/off switch to ON (if already, should be in its pressed state)*
+	; -$14 = Set on/off switch to OFF (if already, should be in its pressed state)*
+	;
+	;*Needs code on the INIT and code that runs every frame to work properly:
+	;- InitPressedStateCode: so that when the sprite spawns, will appear in its pressed state (permanently pressed) AND have
+	;  !ButtonCapOffset,x set to whatever value is set by !Button_PressedOffset
+	;- EveryFrameCode: checks a given RAM (in this case, the on/off switch flag, $14AF|!addr) so that other switch sprites on-screen
+	;  gets pressed by themselves (they themselves not execute SwitchAction) when one of them is pressed by the player, and becomes
+	;  re-pressable again.
 		LDA !extra_byte_3,x
 		BEQ .OnOffFlip			;>$00: on/off toggle
 		CMP #$03		
 		BCC .PSwitchToggle		;>$01: blue p-switch, $02: silver
 		CMP #$13		
 		BCC .CustomTriggersToggle	;>$03-$12: custom triggers
+		BEQ .SetOnOffOn			;>$13: Set on/off to on
+		CMP #$14
+		BEQ .SetOnOffOff		;>$14: Set on/off to off
 		RTS				;>Anything else, return (failsafe)
 		
 		.OnOffFlip
@@ -155,6 +169,60 @@ macro SwitchAction()
 				db %00100000
 				db %01000000
 				db %10000000
+		.SetOnOffOn
+			STZ $14AF|!addr
+			RTS
+		.SetOnOffOff
+			LDA #$01
+			STA $14AF|!addr
+			RTS
+endmacro
+macro EveryFrameCode()
+	EveryFrameCode:
+		LDA !extra_byte_3,x		;\Check if extra byte would make the switch perform action that would make other switches be pressed
+		CMP #$13			;|
+		BEQ .BePressedWhenOnOffIsOn	;|
+		CMP #$14			;|
+		BEQ .BePressedWhenOnOffIsOff	;/
+		RTS
+		
+		.BePressedWhenOnOffIsOn
+			LDA $14AF|!addr
+			BNE .NonPressed
+			LDA #$02
+			STA !ButtonState,x
+			RTS
+		.BePressedWhenOnOffIsOff
+			LDA $14AF|!addr
+			BEQ .NonPressed
+			LDA #$02
+			STA !ButtonState,x
+			RTS
+		.NonPressed
+			STZ !ButtonState,x
+			RTS
+endmacro
+macro InitPressedStateCode()
+	InitPressedStateCode:
+		LDA !extra_byte_3,x		;\Check if extra byte would make the switch perform action that would make other switches be pressed
+		CMP #$13			;|
+		BEQ .BePressedWhenOnOffIsOn	;|
+		CMP #$14			;|
+		BEQ .BePressedWhenOnOffIsOff	;/
+		RTS
+		
+		.BePressedWhenOnOffIsOn
+			LDA $14AF|!addr
+			BNE .NotPressed
+			BRA .Pressed
+		.BePressedWhenOnOffIsOff
+			LDA $14AF|!addr
+			BEQ .NotPressed
+		.Pressed
+			LDA #!Button_PressedOffset
+			STA !ButtonCapOffset,x
+		.NotPressed
+			RTS
 endmacro
 if !Held_Down_Function != 0
 	macro SwitchActionHeldDown()
@@ -164,14 +232,14 @@ if !Held_Down_Function != 0
 endif
 
 Print "INIT ",pc
-	;Sprites appear 1 pixel lower than their original Y position.
 	LDA !D8,x
 	CLC
-	ADC.b #$8-1
+	ADC.b #$8-1		;Sprites appear 1 pixel lower than their original Y position.
 	STA !D8,x
 	LDA !14D4,x
 	ADC #$00
 	STA !14D4,x
+	JSR InitPressedStateCode
 	RTL
 
 Print "MAIN ",pc
@@ -192,8 +260,8 @@ Button:
 	+
 	
 	.RunMain
+		JSR EveryFrameCode
 		;Switch pop back out check
-			
 			LDA !ButtonState,x		;\If switch isn't temporally pressed down, skip
 			CMP #$01			;|
 			BNE .NoPop			;/
@@ -381,6 +449,8 @@ Button:
 	if !Held_Down_Function != 0
 		%SwitchActionHeldDown()
 	endif
+	%EveryFrameCode()
+	%InitPressedStateCode()
 	PlayerFeetOffset:
 		db $18		;>Not on yoshi
 		db $28		;\On yoshi
