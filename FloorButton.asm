@@ -14,7 +14,7 @@
 ; behind tiles with priority). Have this set to 1 if you plan on having the
 ; switch in front of decoration tiles to avoid the switch cap from being
 ; masked (cut off) by the behind-the-foreground switch base.
-;extra_byte_2: color for YXPPCCCT:
+;extra_byte_2: color for YXPPCCCT switch cap:
 ; $00 = Palette 0 (LM row number $08)
 ; $02 = Palette 1 (LM row number $09)
 ; $04 = Palette 2 (LM row number $0A)
@@ -39,6 +39,8 @@
  
  !ButtonDownSpeed = $0080		;>How fast the button cap moves down when pressed, in 1/256th of a pixel per frame ($0080 is 128/256, or 0.5 pixel per frame)
  !ButtonUpSpeed = $0080			;>Same as above but when rising back up.
+ 
+ !SwitchBasePalette = 3			;>Palette of switch base, use values 0-7, don't use any other values.
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
  !SFX_SoundNumb = $0B		;>Sound effect number
  !SFX_Port = $1DF9		;>Use only $1DF9, $1DFA, or $1DFB.
@@ -49,7 +51,7 @@
    !ScreenShake = $20		;>0 = no, any number = yes and how long, in frames
 
 ;Sprite defines
- ;Best not to modify
+ ;Best not to modify these
   ;Sprite tables
    !ButtonState = !1534			;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
    !ButtonPressedTimer = !1540		;>Timer for when the switch is temporally pressed before popping back out (measured when the button cap starts moving downwards, not when it reaches the bottom)
@@ -495,9 +497,10 @@ HandleGFX:
 		LDA #!Tile_Pedestal		;\Tile
 		STA.w ($0302+(0*4))|!Base2,y	;|>Left half
 		STA.w ($0302+(1*4))|!Base2,y	;/>Right half
-		LDA !extra_byte_2,x		;>Palette as extra byte 2
-		AND.b #%00001110		;>Ignore XY flips, page (forcibly set to 0 or 1), and priority
-		ORA.b #(%00010000|!GFXPage)	;>Part of the switch base behind the layer
+;		LDA !extra_byte_2,x		;>Palette as extra byte 2
+;		AND.b #%00001110		;>Ignore XY flips, page (forcibly set to 0 or 1), and priority
+;		ORA.b #(%00010000|!GFXPage)	;>Part of the switch base behind the layer
+		LDA.b #((!SwitchBasePalette<<1)|!GFXPage)
 		STA.w ($0303+(0*4))|!Base2,y	;\Properties ;>Left half
 		ORA.b #%01000000		;|X-flip it
 		STA.w ($0303+(1*4))|!Base2,y	;/>Right half
