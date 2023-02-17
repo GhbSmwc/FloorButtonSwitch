@@ -43,7 +43,7 @@
  !SwitchBasePalette = 3			;>Palette of switch base, use values 0-7, don't use any other values.
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
  !SFX_SoundNumb = $0B		;>Sound effect number
- !SFX_Port = $1DF9		;>Use only $1DF9, $1DFA, or $1DFB.
+ !SFX_Port = $1DF9|!addr	;>Use only $1DF9, $1DFA, or $1DFB.
 
  ;Misc settings
   ;P-switch mode
@@ -289,7 +289,7 @@ Button:
 			ADC #$00			;|
 			STA $01				;/
 			
-			REP #$20			;\$00-$01: Mario's Y position relative to button cap, previous frame
+			REP #$20			;\$00-$01: Mario's Y position relative to button cap, previous frame (this must be performed before ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
 			LDA $D3				;| (MarioYRelativePrev = MarioYPrev - SwitchCapSpriteYPrev)
 			SEC				;| Thanks to RAM $D1-$D4 for storing Mario's previous XY.
 			SBC $00				;|
@@ -297,7 +297,6 @@ Button:
 			SEP #$20
 		
 		;Switch cap moves vertically check
-			wdm
 			LDA !ButtonState,x
 			BNE .MoveDown
 			
@@ -345,7 +344,7 @@ Button:
 		ADC #$00			;|
 		STA !14D4,x			;/
 		
-		LDA $96			;\$02-$03: Mario's Y position relative to the button cap, after frame of movement
+		LDA $96			;\$02-$03: Mario's Y position relative to the button cap, after frame of movement (this must be performed after ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
 		SEC			;|(MarioYRelativeCurrent = MarioYCurrent - SwitchCapSpriteYCurrent)
 		SBC !D8,x		;|
 		STA $02			;|
