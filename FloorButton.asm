@@ -32,8 +32,9 @@
  !GFXPage = 1				;>0 = Page 0, 1 = page 1 (don't use any other values).
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
  
- !Button_NotPressedOffset = $02		;>Y position (relative to sprite's origin) of button cap when not pressed
- !Button_PressedOffset = $05		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressing.
+ ;Pro tip: Asar allows entering hexadecimal signed numbers without using two's complement ("$FF" can be entered as "-$01"), you don't need to convert.
+  !Button_NotPressedOffset = $02	;>Y position (relative to sprite's origin) of button cap when not pressed (can be negative ($80-$FF) for higher positions).
+  !Button_PressedOffset = $05		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressing (can be negative ($80-$FF) for higher positions).
  
  !Held_Down_Function = 0		;>0 = No, 1 = include code that runs every frame while the switch is pressed (see "SwitchActionHeldDown")
  
@@ -238,7 +239,7 @@ macro InitPressedStateCode()
 			LDA $14AF|!addr
 			BEQ .NotPressed
 		.Pressed
-			LDA #!Button_PressedOffset
+			LDA.b #!Button_PressedOffset
 			STA !ButtonCapOffset,x
 		.NotPressed
 			RTS
@@ -298,12 +299,17 @@ Button:
 			STZ !ButtonState,x		;/
 			.NoPop
 		;Get previous marioYposition relative to sprite
+			LDY #$00			;\Y = $00 if displacement is positive, $FF if negative (allows 8-bit signed value to represent signed 16-bit)
+			LDA !ButtonCapOffset,x		;|
+			BPL .NonNegativeOffset		;|
+			INY				;/
+			.NonNegativeOffset
 			LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
 			CLC				;| (SwitchCapSpriteY = SpriteY + Displacement)
 			ADC !ButtonCapOffset,x		;|
 			STA $00				;|
 			LDA !14D4,x			;|
-			ADC #$00			;|
+			ADC ButtonCapHighByteDisp,y	;|
 			STA $01				;/
 			
 			REP #$20			;\$00-$01: Mario's Y position relative to button cap, previous frame (this must be performed before ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
@@ -325,7 +331,7 @@ Button:
 				LDA !ButtonCapOffset,x
 				SBC.b #!ButtonUpSpeed>>8
 				STA !ButtonCapOffset,x
-				LDA #!Button_NotPressedOffset		;\If top limit is above the switch cap's position, (or cap is below the limit), move upwards
+				LDA.b #!Button_NotPressedOffset		;\If top limit is above the switch cap's position, (or cap is below the limit), move upwards
 				CMP !ButtonCapOffset,x			;|(placed here to prevent 1-frame of exceeding limit)
 				BMI .MoveDone				;/
 				STA !ButtonCapOffset,x			;>Otherwise set its position at the limit
@@ -353,12 +359,17 @@ Button:
 		LDA !14D4,x
 		PHA
 		
+		LDY #$00			;\Load Y again due to a bug that if displacement went from $00 to $FF resulted mario briefly (1-frame) disconnect from the platform (shows his falling pose)
+		LDA !ButtonCapOffset,x		;|and during that frame if the player presses jump, result in the player not jumping.
+		BPL +				;|
+		INY				;/
+		+
 		LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
 		CLC				;| (SwitchCapSpriteY = SpriteY + Displacement)
 		ADC !ButtonCapOffset,x		;|
 		STA !D8,x			;|
 		LDA !14D4,x			;|
-		ADC #$00			;|
+		ADC ButtonCapHighByteDisp,y	;|
 		STA !14D4,x			;/
 		
 		LDA $96			;\$02-$03: Mario's Y position relative to the button cap, after frame of movement (this must be performed after ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
@@ -390,6 +401,7 @@ Button:
 			;Mario clipping (16x8 area of his feet), box B
 				JSL $03B664|!BankB			;>Get Mario clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDY $187A|!addr				;>Riding yoshi flag (player is about 3 blocks tall, adds a length of 16 pixel underneath)
+				LDA #$08
 				STA $03					;>Modify height of player's hitbox (not that hitbox extends down and right), so we need to...
 				LDA $96					;\Move his box Y position (from the info obtained from $03B664)
 				CLC					;|
@@ -409,13 +421,6 @@ Button:
 				STA $96					;|
 				LDA !14D4,x				;|
 				SBC #$00				;|
-				STA $97					;|
-				LDA $96					;|
-				CLC					;|
-				ADC !ButtonCapOffset,x			;|
-				STA $96					;|
-				LDA $97					;|
-				ADC #$00				;|
 				STA $97					;/
 		.NoClipFix
 		JSL $01B44F|!BankB	;>Solid sprite subroutine
@@ -477,6 +482,9 @@ Button:
 		db $20		;>Not on yoshi
 		db $30		;\On yoshi
 		db $30		;/
+	ButtonCapHighByteDisp:
+		db $00		;>If Displacement is $00-$7F (positive value)
+		db $FF		;>f Displacement is $80-$FF (negative value)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ;Graphics routine
