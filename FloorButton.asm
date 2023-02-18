@@ -68,7 +68,8 @@
 ;Notes:
 ;- X register must be restored after this code (become a sprite slot index) is finished to prevent bugs/crash.
 ;  Can be done via PHX ... PLX or LDX $15E9|!addr (PLX and LDX $15E9|!addr to be perform after done using X for something else)
-;- Code must end with RTS, using RTL or not having it exist at all can lead to a crash.
+;- Code must end with RTS, using RTL or not having it exist at all can lead to a crash. However, on SA-1, when using "%invoke_snes(label)"
+;  (to access WRAM - $7FXXXX) The code the label points to must end with RTL since it is technically a JSL.
 macro SwitchAction()
 	SwitchAction:
 	;Examples:
@@ -143,10 +144,20 @@ macro SwitchAction()
 		.CustomTriggersToggle
 			if !sa1 != 0
 				%invoke_snes(..WramAccess)
-				..WramAccess
+				RTS
 			endif
 			
 			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
+			..WramAccess
+				;Thing I learned about "%invoke_snes(label)":
+				; - The "subroutine" of "label" must end with RTL
+				; - Several processor-related stuff (AXY, processor flags, etc.) are seperate in SA-1, so the X register in this case doesn't carry over.
+			if !sa1 != 0
+				PHB
+				PHK
+				PLB
+				LDX $15E9|!addr
+			endif
 			LDA !extra_byte_3,x
 			SEC
 			SBC #$03
@@ -160,7 +171,13 @@ macro SwitchAction()
 			EOR ..CustomTriggerFlagBitNumbering,y	;|
 			STA $7FC0FC,x				;/
 			LDX $15E9|!addr				;>Restore sprite slot
-			RTS
+			
+			if !sa1 == 0
+				RTS
+			else
+				PLB
+				RTL
+			endif
 			
 			..CustomTriggerFlagBitNumbering
 				db %00000001
@@ -372,7 +389,7 @@ Button:
 				STA $07					;/
 			;Mario clipping (16x8 area of his feet), box B
 				JSL $03B664|!BankB			;>Get Mario clipping (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
-				LDY $187A				;>Riding yoshi flag (player is about 3 blocks tall, adds a length of 16 pixel underneath)
+				LDY $187A|!addr				;>Riding yoshi flag (player is about 3 blocks tall, adds a length of 16 pixel underneath)
 				STA $03					;>Modify height of player's hitbox (not that hitbox extends down and right), so we need to...
 				LDA $96					;\Move his box Y position (from the info obtained from $03B664)
 				CLC					;|
