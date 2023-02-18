@@ -405,10 +405,9 @@ Button:
 				STA $03					;>Modify height of player's hitbox (not that hitbox extends down and right), so we need to...
 				LDA $96					;\Move his box Y position (from the info obtained from $03B664)
 				CLC					;|
-				ADC PlayerFeetOffset,y			;|
+				ADC.w PlayerFeetOffset,y		;|
 				STA $01					;|
 				LDA $97					;|
-				CLC					;|
 				ADC #$00				;|
 				STA $09					;/
 			;Contact
