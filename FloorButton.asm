@@ -241,7 +241,10 @@ macro InitPressedStateCode()
 		.Pressed
 			LDA.b #!Button_PressedOffset
 			STA !ButtonCapOffset,x
+			RTS
 		.NotPressed
+			LDA.b #!Button_NotPressedOffset
+			STA !ButtonCapOffset,x
 			RTS
 endmacro
 if !Held_Down_Function != 0
