@@ -5,7 +5,7 @@
 
 ;Modified to act as a wall button
 ;sprite by HammerBrother.
-;extra_byte_1: bitwise information %00000BDP
+;extra_byte_1: bitwise information %0000SBDP
 ;-P = permanent flag: 0 = Can press again, 1 = pressed permanently
 ; (resets if offscreen unless you modify the init routine to read
 ; a RAM to determine if !ButtonState should initially hold the value of $02).
@@ -14,6 +14,7 @@
 ; behind tiles with priority). Have this set to 1 if you plan on having the
 ; switch in front of decoration tiles to avoid the switch cap from being
 ; masked (cut off) by the behind-the-foreground switch base.
+;-S = Activate by carryable/kicked sprites: 0 = no, 1 = yes.
 ;extra_byte_2: color for YXPPCCCT switch cap:
 ; $00 = Palette 0 (LM row number $08)
 ; $02 = Palette 1 (LM row number $09)
@@ -297,6 +298,12 @@ Button:
 			BCS .NoPop			;>If player is inside the switch, don't allow it to pop (when set to activate without pressing down on D-pad)
 			
 			.SkipPlayerHoldingItDown
+			LDA !extra_byte_1,x
+			AND.b #%00001000
+			BEQ .IgnoreOtherSprites
+			JSR SpriteTouchSwitchCheck
+			BCS .NoPop
+			.IgnoreOtherSprites
 			LDA !ButtonPressedTimer,x	;\If timer runs out, revert switch
 			BNE .NoPop			;|
 			STZ !ButtonState,x		;/
@@ -457,6 +464,35 @@ Button:
 		
 		.AlreadyPressed
 		.NotPressingSwitch
+		
+		.SpriteTrigger
+			LDA !extra_byte_1,x
+			AND.b #%00001000
+			BEQ ..NotTouchingSwitch
+			LDA !ButtonState,x
+			BNE ..SpriteAlreadyPressed	;>If switch pressed, don't allow sprite to re-trigger it
+			JSR SpriteTouchSwitchCheck
+			BCC ..NotTouchingSwitch
+			LDA #!SFX_SoundNumb		;\Sound effect
+			STA !SFX_Port			;/
+			LDA !extra_byte_1,x		;\Permanent flag check
+			BIT.b #%00000001		;|
+			BNE ..Permanent			;/
+			..Temporary
+				LDA #$01			;\temporally pressed
+				STA !ButtonState,x		;/
+				LDA.b #!PressedTimer		;\Set timer
+				STA !ButtonPressedTimer,x	;/
+				BRA ..SwitchFunction
+			..Permanent
+				LDA #$02			;\permanently pressed
+				STA !ButtonState,x		;/
+			..SwitchFunction
+				JSR SwitchAction
+			
+			..NotTouchingSwitch
+			..SpriteAlreadyPressed
+		
 		PLA			;\Restore sprite position
 		STA !14D4,x		;|
 		PLA			;|
@@ -568,3 +604,44 @@ HandleGFX:
 	LDA #$03			;tiles to display minus 1 = 3 (4 tiles, minus 1 = 3)
 	JSL $01B7B3|!BankB		;
 	RTS				;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;Sprite touch switch check
+;Output:
+; -Carry: Clear if no contact with dropped/kicked sprite, set
+;  otherwise
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+SpriteTouchSwitchCheck:
+	LDX.b #!SprSize-1			;>Start at last index of sprite and loop counting until X=$FF (loops from 11/21 to 0)
+	.Loop
+		..CheckCollision
+			CPX $15E9|!addr		;\If itself, then skip
+			BEQ ..Next		;/
+			LDA !14C8,x		;\If other sprite is kicked/carryable, proceed
+			CMP #$09		;|
+			BEQ ...Carryable	;|
+			CMP #$0A		;|
+			BEQ ...Kicked		;/
+			BRA ..Next
+			...Carryable
+			...Kicked
+				PHX
+				LDX $15E9|!addr
+				;Get hitbox A (the switch hitbox, self sprite)
+				JSL $03B69F|!BankB		;>Get sprite hitbox info (clipping A)
+				LDA #$08
+				STA $07
+				PLX
+				;Hitbox B
+				JSL $03B6E5|!BankB
+				JSL $03B72B|!BankB		;>Check contact
+				BCC ..Next			;>No contact, next
+				LDX $15E9|!addr			;>Restore current sprite slot
+				RTS				;>Exit loop and return
+		..Next
+			DEX
+			BPL .Loop
+			CLC			;>If all 12/22 slots processed and all no contact, clear carry
+			LDX $15E9|!addr		;>Restore current sprite slot
+			RTS
