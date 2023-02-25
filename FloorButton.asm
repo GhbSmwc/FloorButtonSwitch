@@ -613,6 +613,10 @@ HandleGFX:
 ;  otherwise
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 SpriteTouchSwitchCheck:
+	;Get hitbox A (the switch hitbox, self sprite)
+	JSL $03B69F|!BankB		;>Get sprite hitbox info (clipping A)
+	LDA #$08
+	STA $07
 	LDX.b #!SprSize-1			;>Start at last index of sprite and loop counting until X=$FF (loops from 11/21 to 0)
 	.Loop
 		..CheckCollision
@@ -626,13 +630,6 @@ SpriteTouchSwitchCheck:
 			BRA ..Next
 			...Carryable
 			...Kicked
-				PHX
-				LDX $15E9|!addr
-				;Get hitbox A (the switch hitbox, self sprite)
-				JSL $03B69F|!BankB		;>Get sprite hitbox info (clipping A)
-				LDA #$08
-				STA $07
-				PLX
 				;Hitbox B
 				JSL $03B6E5|!BankB
 				JSL $03B72B|!BankB		;>Check contact
