@@ -5,15 +5,16 @@
 
 ;Modified to act as a wall button
 ;sprite by HammerBrother.
-;extra_byte_1: bitwise information %00HUSBDP
+;extra_byte_1: bitwise information %00HUSBDP, see BinaryHex_SwitchSetting.html for easy conversion
 ;-P = permanent flag: 0 = Can press again, 1 = pressed permanently
-; (resets if offscreen unless you modify the init routine to read
-; a RAM to determine if !ButtonState should initially hold the value of $02).
-;-D = Require pressing down on D-pad: 0 = no, 1 = yes
+;     (resets if offscreen unless you modify the init routine to read
+;     a RAM to determine if !ButtonState should initially hold the value of $02).
+;-D = Require pressing down on D-pad: 0 = no, 1 = yes (only applies to
+;     right-side-up switch)
 ;-B = Base of switch in front of layer 1 flag: 0 = behind, 1 = in front (but
-; behind tiles with priority). Have this set to 1 if you plan on having the
-; switch in front of decoration tiles to avoid the switch cap from being
-; masked (cut off) by the behind-the-foreground switch base.
+;     behind tiles with priority). Have this set to 1 if you plan on having the
+;     switch in front of decoration tiles to avoid the switch cap from being
+;     masked (cut off) by the behind-the-foreground switch base.
 ;-S = Activate by carryable/kicked sprites: 0 = no, 1 = yes.
 ;-U = Upside down flag: 0 = on floor facing upwards, 1 = ceiling facing downwards.
 ;-H = Solid hitbox to player: 0 = no, 1 = yes.
@@ -491,7 +492,7 @@ Button:
 				+
 				LDA !extra_byte_1,x
 				BIT.b #%00000010
-				BEQ ....NoDownNeeded	;>If D flag set, player can activate switch by touching the top without need to press down
+				BEQ ....NoDownNeeded	;>If D flag set, player can activate switch by touching the top and press down
 				LDA $16
 				BIT.b #%00000100
 				BEQ ...NotPressingSwitch	;>If not pressing down, skip

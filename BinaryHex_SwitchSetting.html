@@ -1,0 +1,183 @@
+<html>
+	<head>
+		<style>
+			html {
+			background-color: #000207;
+			color: white;
+			font-family: sans-serif;
+			}
+			
+			table, th, td {
+			border: 1px solid white;
+			border-collapse: collapse;
+			}
+			
+			span.NoLineBreak {
+				white-space: nowrap;
+			}
+			
+			abbr{cursor: help;}
+			img.img-hor {
+				-moz-transform: scaleX(-1);
+				-o-transform: scaleX(-1);
+				-webkit-transform: scaleX(-1);
+				transform: scaleX(-1);
+				filter: FlipH;
+				-ms-filter: "FlipH";
+			}
+			input[type='text'] { font-family: monospace;}
+			input[type='number'] { font-family: monospace;}
+		</style>
+	</head>
+<body>
+<p>I made this tool because the extra bits setting on LM are, at the moment, strictly hexadecimal, and the <kbd>!extra_byte_1</kbd> contains info that is stored bitwise for each bit.
+So I made this tool to make this a lot easier to encode/decode between binary settings and hexadecimal.</p>
+<table>
+	<tr>
+		<td>
+			<ul>
+				<button onclick="ChangeFilterSettings('ExtraByte1Value', 1); Binary_To_Hex()">Check all</button><button onclick="ChangeFilterSettings('ExtraByte1Value', 0); Binary_To_Hex()">Uncheck all</button><button onclick="ChangeFilterSettings('ExtraByte1Value', 2); Binary_To_Hex()">Invert</button>
+				<li><label><input type="checkbox" class="ExtraByte1Value" id="ExtraByte_1_Bit_0" onchange="Binary_To_Hex()">Permanently pressed</label></li>
+				<li><label><input type="checkbox" class="ExtraByte1Value" id="ExtraByte_1_Bit_1" onchange="Binary_To_Hex()">Require pressing down (only applies to right-side-up switches)</label></li>
+				<li><label><input type="checkbox" class="ExtraByte1Value" id="ExtraByte_1_Bit_2" onchange="Binary_To_Hex()">Base of switch in front of layer 1</label></li>
+				<li><label><input type="checkbox" class="ExtraByte1Value" id="ExtraByte_1_Bit_3" onchange="Binary_To_Hex()">Can be triggered by sprites</label></li>
+				<li><label><input type="checkbox" class="ExtraByte1Value" id="ExtraByte_1_Bit_4" onchange="Binary_To_Hex()">Upside down</label></li>
+				<li><label><input type="checkbox" class="ExtraByte1Value" id="ExtraByte_1_Bit_5" onchange="Binary_To_Hex()">Solid hitbox to player</label></li>
+			</ul>
+			%<input type="text" onchange="Bin_To_Binary()" value="00000000" id="BinInput" class="AnyRadixNumberInput" data-input_number_radix="2">
+		</td>
+		<td>
+			$<input type="text" onchange="Hex_To_Binary()" value="00" id="HexInput" class="AnyRadixNumberInput" data-input_number_radix="16"> (<kbd>$00-$3F</kbd>)
+		</td>
+	</tr>
+</table>
+
+<script>
+	 window.onload = function(){ //Upon loading, apply the function to execute when the up/down arrow keys are pressed.
+	  UpDownArrowKeysIncrement()
+	 }
+	//Arrow keys for hex input
+		function UpDownArrowKeysIncrement() {
+			let FocusedElement = document.activeElement;
+			if(FocusedElement.addEventListener ) {
+				FocusedElement.addEventListener('keydown',this.keyHandler,false);
+			} else if(FocusedElement.attachEvent ) {
+				FocusedElement.attachEvent('onkeydown',this.keyHandler);
+			}
+		}
+	
+		function keyHandler(e) {
+			if (((e.code == "ArrowUp")||e.code == "ArrowDown")&&((/(^|\s.*?)AnyRadixNumberInput($|\s.*?)/).test(document.activeElement.className))) {
+				let target;
+				//Handle radix.
+					let Radix = 10
+					if ((/^\d+$/).test(document.activeElement.dataset.input_number_radix)) {
+						Radix = parseInt(document.activeElement.dataset.input_number_radix)
+					}
+				let InputNumber = ParseBigIntValue(document.activeElement.value, Radix) //This gets the number
+				if (!e) var e = window.event;
+				if (e.target) target = e.target;
+				else if (e.srcElement) target = e.srcElement;
+				
+				if(e.code == "ArrowUp") {
+					InputNumber++
+					e.preventDefault()	//Prevents the caret (blinking text cursor) from being placed at the beginning of the line.
+				} else if(e.code == "ArrowDown") {
+					InputNumber--
+				}
+				document.activeElement.value = InputNumber.toString(Radix).toUpperCase()
+				document.activeElement.setSelectionRange(document.activeElement.value.length, document.activeElement.value.length)
+				document.activeElement.onchange()
+			}
+		}
+	function ParseBigIntValue(string, radix) {
+		//Acts more closely to parseInt, unlike other methods (other functions, like CorrectBinBigIntValue)
+		//this works with bigInt.
+		let Output = 0n
+		let NegativeNumber = 1n
+		if ((/^-/).test(string)) {
+			NegativeNumber = -1n
+		}
+		let DigitPart = string.substring((string.search(/[0-9a-zA-Z]/)))
+		switch (radix) {
+			//decimal
+				default:
+				if ((/^-?\d+$/).test(string)) {
+					Output = BigInt(string)
+				}
+				break
+			//Hexadecimal
+				case 16:
+				case "0x":
+				case "0X":
+				if ((/^-?[0-9A-Fa-f]+$/).test(string)) {
+					Output = BigInt("0x" + DigitPart) * NegativeNumber
+				}
+				break
+			//Binary
+				case 2:
+				case "0b":
+				case "0B":
+				if ((/^-?[01]+$/).test(string)) {
+					Output = BigInt("0b" + DigitPart) * NegativeNumber
+				}
+		
+		}
+		return Output
+	}
+	function ChangeFilterSettings(ElementClass, Setting) {
+		//ElementClass: the element class to be affected by this function
+		//Setting:
+		//0 = uncheck
+		//1 = check
+		//2+ = invert
+		if (Setting < 2) {
+			for (let i = 0; i < document.getElementsByClassName(ElementClass).length; i++) {
+				document.getElementsByClassName(ElementClass)[i].checked = Setting
+			}
+		} else {
+			for (let i = 0; i < document.getElementsByClassName(ElementClass).length; i++) {
+				document.getElementsByClassName(ElementClass)[i].checked = document.getElementsByClassName(ElementClass)[i].checked ^ 1
+			}
+		}
+	}
+	function pad(num, size) {
+		//This adds leading zeroes. [size] is the number of digits at minimum to show (less than that will fill this with 0s).
+		var s = num+"";
+		while (s.length < size) s = "0" + s;
+		return s;
+	}
+	function clamp(num, min, max) {
+		//Restrict a number within a specified range.
+			if (isNaN(num) == true) {
+				num = 0
+			}
+			return num <= min ? min : num >= max ? max : num;
+	}
+	function Binary_To_Hex() {
+		let ExtraByte1Value = 0
+		for (let i = 0; i < document.getElementsByClassName("ExtraByte1Value").length; i++) {
+			ExtraByte1Value |= Number(document.getElementsByClassName("ExtraByte1Value")[i].checked)<<i
+		}
+		document.getElementById("HexInput").value = pad(ExtraByte1Value.toString(16), 2).toUpperCase()
+		document.getElementById("BinInput").value = pad(ExtraByte1Value.toString(2), 8).toString(2)
+	}
+	function Hex_To_Binary() {
+		let ExtraByte1Value = parseInt(document.getElementById("HexInput").value, 16)
+		if (isNaN(ExtraByte1Value)) {ExtraByte1Value = 0}
+		ExtraByte1Value = clamp(ExtraByte1Value, 0, 63)
+		document.getElementById("HexInput").value = pad(ExtraByte1Value.toString(16), 2).toUpperCase()
+		document.getElementById("BinInput").value = pad(ExtraByte1Value.toString(2), 8).toString(2)
+		for (let i = 0; i < document.getElementsByClassName("ExtraByte1Value").length; i++) {
+			document.getElementsByClassName("ExtraByte1Value")[i].checked = (ExtraByte1Value>>i) & 1
+		}
+	}
+	function Bin_To_Binary() {
+		let ExtraByte1Value = parseInt(document.getElementById("BinInput").value, 2)
+		if (isNaN(ExtraByte1Value)) {ExtraByte1Value = 0}
+		ExtraByte1Value = clamp(ExtraByte1Value, 0, 63)
+		document.getElementById("BinInput").value = pad(ExtraByte1Value.toString(2), 8).toString(2)
+		document.getElementById("HexInput").value = pad(ExtraByte1Value.toString(16), 2).toUpperCase()
+		Hex_To_Binary()
+	}
+</script>
