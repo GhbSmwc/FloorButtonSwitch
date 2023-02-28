@@ -267,26 +267,59 @@ if !Held_Down_Function != 0
 endif
 
 Print "INIT ",pc
-	PHB
-	PHK
-	PLB
-	LDY #$00
-	LDA !extra_byte_1,x
-	BIT.b #%00010000
-	BEQ +
-	INY
-	+
-	LDA !D8,x
-	CLC
-	ADC.b SwitchSpriteYSpawnOffset,y
-	STA !D8,x
-	LDA !14D4,x
-	ADC SwitchSpriteYSpawnOffsetHigh,y
-	STA !14D4,x
-	JSR InitPressedStateCode
+	InitCode:
+		PHB
+		PHK
+		PLB
+		.SwitchOffsetBasedOnUpsidedownOrNot
+			LDY #$00
+			LDA !extra_byte_1,x
+			BIT.b #%00010000
+			BEQ +
+			INY
+			+
+			LDA !D8,x
+			CLC
+			ADC.b SwitchSpriteYSpawnOffset,y
+			STA !D8,x
+			LDA !14D4,x
+			ADC SwitchSpriteYSpawnOffsetHigh,y
+			STA !14D4,x
+		.StartOutPressedCode
+			JSR InitPressedStateCode
 	
-	PLB
-	RTL
+		.HandleLayer2SpawnPosition
+			;SpriteYPosL2 = SpriteYPos - (Layer2YPos - Layer1YPos)
+			REP #$20
+			LDA $1468|!addr
+			SEC
+			SBC $1464|!addr
+			STA $00			;HAD to store to $00 or some other RAM so the high byte is handled properly
+			SEP #$20
+			LDA !D8,x
+			SEC
+			SBC $00
+			STA !D8,x
+			LDA !14D4,x
+			SBC $01
+			STA !14D4,x
+			
+			;SpriteXPosL2 = SpriteXPos - (Layer2XPos - Layer1XPos)
+			REP #$20
+			LDA $1466|!addr
+			SEC
+			SBC $1462|!addr
+			STA $00			;HAD to store to $00 or some other RAM so the high byte is handled properly
+			SEP #$20
+			LDA !E4,x
+			SEC
+			SBC $00
+			STA !E4,x
+			LDA !14E0,x
+			SBC $01
+			STA !14E0,x
+		PLB
+		RTL
 	
 	SwitchSpriteYSpawnOffset:
 	db $08-1		;Sprites appear 1 pixel lower than their original Y position.
