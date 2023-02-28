@@ -5,7 +5,7 @@
 
 ;Modified to act as a wall button
 ;sprite by HammerBrother.
-;extra_byte_1: bitwise information %00HUSBDP, see BinaryHex_SwitchSetting.html for easy conversion
+;extra_byte_1: bitwise information %0LHUSBDP, see BinaryHex_SwitchSetting.html for easy conversion
 ;-P = permanent flag: 0 = Can press again, 1 = pressed permanently
 ;     (resets if offscreen unless you modify the init routine to read
 ;     a RAM to determine if !ButtonState should initially hold the value of $02).
@@ -23,6 +23,7 @@
 ;     as the on/off switch, which cancels the on/off switch SFX when hit by the
 ;     player hitting the bottom of the solid block. Have this set to 0 if you
 ;     have 1-block tall tight spaces just in case.
+;-L = Move with layer 2: 0 = no, 1 = yes
 ; Recommend settings or settings you normally want: $28 ("normal" switch), $38 ("upside down normal switch").
 ;
 ;extra_byte_2: color for YXPPCCCT switch cap:
@@ -353,7 +354,7 @@ Button:
 			...NonNegativeOffset
 			LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
 			CLC				;| (SwitchCapSpriteY = SpriteY + Displacement)
-			ADC !ButtonCapOffset,x		;|
+			ADC !ButtonCapOffset,x		;| $00-$01: Position of button cap
 			STA $00				;|
 			LDA !14D4,x			;|
 			ADC ButtonCapHighByteDisp,y	;|
@@ -365,7 +366,39 @@ Button:
 			SBC $00				;|
 			STA $00				;/
 			SEP #$20
-		
+		..MoveWithLayer2
+			LDA !extra_byte_1,x
+			BIT.b #%01000000
+			BEQ ..CapMovement
+			
+			...YMove
+				LDY #$00
+				LDA $17BE|!addr
+				BPL ....Positive
+				....Negative
+					INY
+				....Positive
+				LDA !D8,x
+				SEC
+				SBC $17BE|!addr
+				STA !D8,x
+				LDA !14D4,x
+				SBC PositiveNegativeHighByte,y
+				STA !14D4,x
+			...XMove
+				LDY #$00
+				LDA $17BF|!addr
+				BPL ....Positive
+				....Negative
+					INY
+				....Positive
+				LDA !E4,x
+				SEC
+				SBC $17BF|!addr
+				STA !E4,x
+				LDA !14E0,x
+				SBC PositiveNegativeHighByte,y
+				STA !14E0,x
 		..CapMovement
 			LDA !ButtonState,x
 			BNE ...MoveDown
@@ -445,6 +478,15 @@ Button:
 				SBC $00						;/
 				SEP #$20					;\This is a "platform pass fix": https://www.smwcentral.net/?p=section&a=details&id=13557 - this time, instead of using [MarioXYSpeedRelativeToSprite = MarioXYSpeed - SpriteXYspeed], we do
 				BMI ....NoClipFix				;/[MarioXYRelativeToSprite = MarioXYPos - SpriteXYPos] twice, before and after moving the cap up and down. If Mario is moving upwards against, don't apply the set-y-position.
+				;^While this fixes a bug where the sprite and Mario moves in the same direction and the
+				; sprite moves faster and catches mario, another, it doesn't work if the sprite goes
+				; too fast, especially when set to move with layer 2 and uses "Layer 2, Smash 2"
+				; (sprite $E9 in LM) and on phase 3 (when the entire 4th block in screen $0B is
+				; on-screen). This is because collision check only checks at the starting and ending
+				; positions (positions are actually broken up into individual steps of positions, each
+				; frame) once per frame of the two things but not in between ("mid-movement" does not
+				; exist) within a frame. This speed-phasing bug pretty much exists in all games with
+				; physics btw.
 				
 				;Sprite clipping (the button cap), box A
 				JSL $03B69F|!BankB			;>Get sprite clipping A (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
@@ -490,6 +532,27 @@ Button:
 				BCS +
 				JMP ...NotPressingSwitch
 				+
+				....MoveHorizontallyWithL2
+					LDA !extra_byte_1,x
+					AND.b #%01100000		;>BIT does not work properly (does not modify value in Accumulator), so AND is used instead
+					CMP.b #%01100000		
+					BNE .....Done			;>If not both solid and move with layer 2, skip
+					
+					LDY #$00
+					LDA $17BF|!addr
+					BPL .....Positive
+					.....Negative
+						INY
+					.....Positive
+					LDA $94
+					SEC
+					SBC $17BF|!addr
+					STA $94
+					LDA $95
+					SBC PositiveNegativeHighByte,y
+					STA $95
+					
+					.....Done
 				LDA !extra_byte_1,x
 				BIT.b #%00000010
 				BEQ ....NoDownNeeded	;>If D flag set, player can activate switch by touching the top and press down
@@ -595,6 +658,7 @@ Button:
 		db $30		;\On yoshi
 		db $30		;/
 	ButtonCapHighByteDisp:
+	PositiveNegativeHighByte:
 		db $00		;>If Displacement is $00-$7F (positive value)
 		db $FF		;>f Displacement is $80-$FF (negative value)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
