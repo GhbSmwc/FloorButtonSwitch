@@ -289,6 +289,9 @@ Print "INIT ",pc
 			JSR InitPressedStateCode
 	
 		.HandleLayer2SpawnPosition
+			LDA !extra_byte_1,x
+			BIT.b #%01000000
+			BEQ ..NotLayer2
 			;SpriteYPosL2 = SpriteYPos - (Layer2YPos - Layer1YPos)
 			REP #$20
 			LDA $1468|!addr
@@ -318,6 +321,7 @@ Print "INIT ",pc
 			LDA !14E0,x
 			SBC $01
 			STA !14E0,x
+			..NotLayer2
 		PLB
 		RTL
 	
@@ -380,19 +384,30 @@ Button:
 			STZ !ButtonState,x		;/
 			...NoPop
 		..MarioRelativePosToSpr
-			LDY #$00			;\Y = $00 if displacement is positive, $FF if negative (allows 8-bit signed value to represent signed 16-bit)
-			LDA !ButtonCapOffset,x		;|
-			BPL ...NonNegativeOffset	;|
-			INY				;/
-			...NonNegativeOffset
-			LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
-			CLC				;| (SwitchCapSpriteY = SpriteY + Displacement)
-			ADC !ButtonCapOffset,x		;| $00-$01: Position of button cap
-			STA $00				;|
-			LDA !14D4,x			;|
-			ADC ButtonCapHighByteDisp,y	;|
-			STA $01				;/
+			LDA !extra_byte_1,x
+			BIT.b #%00010000
+			BNE ...UpsideDownPosition
 			
+			...RightSideUp
+				LDY #$00			;\Y = $00 if displacement is positive, $FF if negative (allows 8-bit signed value to represent signed 16-bit)
+				LDA !ButtonCapOffset,x		;|
+				BPL ....NonNegativeOffset	;|
+				INY				;/
+				....NonNegativeOffset
+				LDA !D8,x			;\Make hitbox of button cap move with the position of the cap
+				CLC				;| (SwitchCapSpriteY = SpriteY + Displacement)
+				ADC !ButtonCapOffset,x		;| $00-$01: Position of button cap
+				STA $00				;|
+				LDA !14D4,x			;|
+				ADC ButtonCapHighByteDisp,y	;|
+				STA $01				;/
+				BRA +
+			 ...UpsideDownPosition
+				LDA !D8,x
+				STA $00
+				LDA !14D4,x
+				STA $01
+			+
 			REP #$20			;\$00-$01: Mario's Y position relative to button cap, previous frame (this must be performed before ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
 			LDA $D3				;| (MarioYRelativePrev = MarioYPrev - SwitchCapSpriteYPrev)
 			SEC				;| Thanks to RAM $D1-$D4 for storing Mario's previous XY.
@@ -591,13 +606,33 @@ Button:
 				BEQ ....NoDownNeeded	;>If D flag set, player can activate switch by touching the top and press down
 				LDA $16
 				BIT.b #%00000100
-				BEQ ...NotPressingSwitch	;>If not pressing down, skip
+				BNE +
+				;BEQ ...NotPressingSwitch	;>If not pressing down, skip
+				JMP ...NotPressingSwitch
+				+
 				....NoDownNeeded
 				JSR TriggerSwitch
-				BRA ...PlayerCollisionDone
+				JMP ...PlayerCollisionDone
 			...UpSideDownHitboxWithPlayer
 				LDA !ButtonState,x
-				BNE ...PlayerCollisionDone
+				BEQ +
+				JMP ...NotPressingSwitch
+				+
+				
+				LDA $96			;\$02-$03: Mario's Y position relative to the button cap, after frame of movement (this must be performed after ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
+				SEC			;|(MarioYRelativeCurrent = MarioYCurrent - SwitchCapSpriteYCurrent)
+				SBC !D8,x		;|
+				STA $02			;|
+				LDA $97			;|
+				SBC !14D4,x		;|
+				STA $03			;/
+				REP #$20
+				LDA $02						;\Mario's Y position delta relative to the sprite position delta (if negative, player is moving upwards against sprite, 0, player and sprite moving at same pixels per frame, positive, player moves downwards against sprite)
+				SEC						;|Effectively, this is the "speed" (in pixels per frame) of Mario moving against the sprite.
+				SBC $00						;/
+				STA $0E
+				SEP #$20					;\This is a "platform pass fix": https://www.smwcentral.net/?p=section&a=details&id=13557 - this time, instead of using [MarioXYSpeedRelativeToSprite = MarioXYSpeed - SpriteXYspeed], we do
+				BPL ...NotPressingSwitch			;/[MarioXYRelativeToSprite = MarioXYPos - SpriteXYPos] twice, before and after moving the cap up and down. But this is upside down.
 				;I'm avoiding using JSL $01B44F (solid sprite subroutine) because the hitbox of that may have a flaw the player could clip into a layer 1 block and trigger the "mario stands on top" and be able to 1-frame jump off, akin to the walljump glitch
 				JSL $03B69F|!BankB			;>Get sprite clipping A (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDA $05					;\Modify Y position of sprite
