@@ -6,9 +6,8 @@
 ;Modified to act as a wall button
 ;sprite by HammerBrother.
 ;extra_byte_1: bitwise information %0LHUSBDP, see BinaryHex_SwitchSetting.html for easy conversion
-;-P = permanent flag: 0 = Can press again, 1 = pressed permanently
-;     (resets if offscreen unless you modify the init routine to read
-;     a RAM to determine if !ButtonState should initially hold the value of $02).
+;-P = permanent flag: 0 = Can press again, 1 = pressed permanently (will write a bit in freeram,
+;     based on extra_byte_4)
 ;-D = Require pressing down on D-pad: 0 = no, 1 = yes (only applies to
 ;     right-side-up switch)
 ;-B = Base of switch in front of layer 1 flag: 0 = behind, 1 = in front (but
@@ -36,7 +35,22 @@
 ; $0C = Palette 6 (LM row number $0E)
 ; $0E = Palette 7 (LM row number $0F)
 ;extra_byte_3: Custom switch action (see macro below).
+;extra_byte_4: When extra_byte_1'ss P bit is set, this acts as a "flag number" to determine what bit to set
+; on !Freeram_PressedSwitchMemory.
 
+;Freeram
+ !Freeram_PressedSwitchMemory = $60
+  ;^[NumberOfBytes = ceiling(NumberOfFlags / 8)]
+  ; "ceiling" is a function that rounds a number up to an integer (9 bits used / 8 = 1.125 -> 2 bytes)
+  ; "NumberOfFlags" is the highest number of flags being used in your entire game (e.g if you have 2 levels, one uses 4 flags and another uses
+  ; 12, then assume NumberOfFlags uses 12).
+  ;
+  ; A RAM that is only used when this sprite is running AND having extra_byte_1's bit 0 (P bit) being set. Contains bitwise information
+  ; so that when the switch is to remain pressed even if it disappears offscreen, will remember this state when it respawns.
+  ;
+  ; To find out what byte a given flag number is on, it is [!Freeram_PressedSwitchMemory + floor(FlagNumber / 8)]
+  ; "floor" is a function that rounds a number down to an integer (7/8 = 0.875 -> 0)
+  ; And what flag within a byte is simply [FlagNumber % 8] where the "%" represents a modulo operator
 ;Settings
  !Tile_ButtonCap = $02			;>tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
  !Tile_Pedestal = $03
@@ -181,7 +195,7 @@ macro SwitchAction()
 			AND.b #%00001111			;>Modulo by 8 to make it wraparound 0-7, the bit numbering range of 1-byte
 			TAY					;>Y = $00-$07, corresponding to what bit number of the custom trigger
 			LDA $7FC0FC,x				;\Toggle custom trigger flags
-			EOR ..CustomTriggerFlagBitNumbering,y	;|
+			EOR ReadBitPosition,y			;|
 			STA $7FC0FC,x				;/
 			LDX $15E9|!addr				;>Restore sprite slot
 			
@@ -191,16 +205,6 @@ macro SwitchAction()
 				PLB
 				RTL
 			endif
-			
-			..CustomTriggerFlagBitNumbering
-				db %00000001
-				db %00000010
-				db %00000100
-				db %00001000
-				db %00010000
-				db %00100000
-				db %01000000
-				db %10000000
 		.SetOnOffOn
 			STZ $14AF|!addr
 			RTS
@@ -322,6 +326,26 @@ Print "INIT ",pc
 			SBC $01
 			STA !14E0,x
 			..NotLayer2
+		.PressedPermanentlyBit
+			LDA !extra_byte_1,x
+			BIT.b #%00000001
+			BEQ ..NotPermanent
+			LDA !extra_byte_4,x			;\BitIndex = FlagNumber % 8
+			AND.b #%00000111			;|
+			TAY					;/
+			LDA !extra_byte_4,x			;\ByteIndex = floor(FlagNumber / 8)
+			LSR #3					;|
+			TAX					;/
+			LDA !Freeram_PressedSwitchMemory,x	;\If the flag we are checking...
+			AND ReadBitPosition,y			;/
+			LDX $15E9|!addr				;>Restore current sprite slot
+			CMP #$00				;>Compare with A, not X
+			BEQ ..NotPressed			;>...Clear, then spawn as "not pressed"
+			..Pressed
+				LDA #$02			;\...Otherwise spawn in a pressed state
+				STA !ButtonState,x		;/
+			..NotPressed
+			..NotPermanent
 		PLB
 		RTL
 	
@@ -331,6 +355,16 @@ Print "INIT ",pc
 	SwitchSpriteYSpawnOffsetHigh:
 	db $00
 	db $FF
+	
+	ReadBitPosition:
+	db %00000001
+	db %00000010
+	db %00000100
+	db %00001000
+	db %00010000
+	db %00100000
+	db %01000000
+	db %10000000
 
 Print "MAIN ",pc
 	PHB
@@ -341,7 +375,7 @@ Print "MAIN ",pc
 	RTL
 
 Button:
-	%SubOffScreen()			
+	%SubOffScreen()			;>We don't want the switch sprite to potentially fill up all the sprite slots.
 	LDA !extra_byte_1,x
 	BIT.b #%00010000
 	BNE +
@@ -883,6 +917,16 @@ TriggerSwitch:
 	.Permanent
 		LDA #$02			;\permanently pressed
 		STA !ButtonState,x		;/
+		LDA !extra_byte_4,x		;\BitIndex = FlagNumber % 8
+		AND.b #%00000111		;|
+		TAY				;/
+		LDA !extra_byte_4,x		;\ByteIndex = floor(FlagNumber / 8)
+		LSR #3				;|
+		TAX				;/
+		LDA !Freeram_PressedSwitchMemory,x
+		ORA ReadBitPosition,y
+		STA !Freeram_PressedSwitchMemory,x
+		LDX $15E9|!addr		;>Restore current sprite slot
 	.SwitchFunction
 		JSR SwitchAction
 	.Done
