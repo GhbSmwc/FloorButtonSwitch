@@ -121,50 +121,66 @@ macro SwitchAction()
 	; -$11 = Toggle LM custom trigger $0E
 	; -$12 = Toggle LM custom trigger $0F
 	;
-	; -These below needs code at "EveryFrameCode" (also executes on init) so that when they spawn or at every frame,
-	;  be in its pressed state.
+	; -These below (all the "--" entries before the non-"--" text) uses code at
+	;  "EveryFrameCode" (also executes on init) so that when they spawn or at every frame,
+	;  be in its pressed state if the switch action is already in that state.
 	;
-	; -$13 = Set on/off switch to ON (if already, should be in its pressed state)
-	; -$14 = Set on/off switch to OFF (if already, should be in its pressed state)
-	; -$15 = Activate blue P-Switch (if blue P-switch already on, should be in its pressed state)
-	; -$16 = Activate silver P-switch (if silver P-switch already on, should be in its pressed state)
-	; -$17 = Deactivate blue P-Switch (if blue P-switch already off, should be in its pressed state)
-	; -$18 = Deactivate silver P-switch (if silver P-switch already off, should be in its pressed state)
-	; -$19 = Activate LM custom trigger $00
-	; -$1A = Activate LM custom trigger $01
-	; -$1B = Activate LM custom trigger $02
-	; -$1C = Activate LM custom trigger $03
-	; -$1D = Activate LM custom trigger $04
-	; -$1E = Activate LM custom trigger $05
-	; -$1F = Activate LM custom trigger $06
-	; -$20 = Activate LM custom trigger $07
-	; -$21 = Activate LM custom trigger $08
-	; -$22 = Activate LM custom trigger $09
-	; -$23 = Activate LM custom trigger $0A
-	; -$24 = Activate LM custom trigger $0B
-	; -$25 = Activate LM custom trigger $0C
-	; -$26 = Activate LM custom trigger $0D
-	; -$27 = Activate LM custom trigger $0E
-	; -$28 = Activate LM custom trigger $0F
-	; -$29 = Deactivate LM custom trigger $00
-	; -$2A = Deactivate LM custom trigger $01
-	; -$2B = Deactivate LM custom trigger $02
-	; -$2C = Deactivate LM custom trigger $03
-	; -$2D = Deactivate LM custom trigger $04
-	; -$2E = Deactivate LM custom trigger $05
-	; -$2F = Deactivate LM custom trigger $06
-	; -$30 = Deactivate LM custom trigger $07
-	; -$31 = Deactivate LM custom trigger $08
-	; -$32 = Deactivate LM custom trigger $09
-	; -$33 = Deactivate LM custom trigger $0A
-	; -$34 = Deactivate LM custom trigger $0B
-	; -$35 = Deactivate LM custom trigger $0C
-	; -$36 = Deactivate LM custom trigger $0D
-	; -$37 = Deactivate LM custom trigger $0E
-	; -$38 = Deactivate LM custom trigger $0F
-	; -$39
-
-	
+	; --$13 = Set on/off switch to ON (if already, should be in its pressed state)
+	; --$14 = Set on/off switch to OFF (if already, should be in its pressed state)
+	; --$15 = Activate blue P-Switch (if blue P-switch already on, should be in its pressed state)
+	; --$16 = Activate silver P-switch (if silver P-switch already on, should be in its pressed state)
+	; --$17 = Deactivate blue P-Switch (if blue P-switch already off, should be in its pressed state)
+	; --$18 = Deactivate silver P-switch (if silver P-switch already off, should be in its pressed state)
+	; --$19 = Activate LM custom trigger $00
+	; --$1A = Activate LM custom trigger $01
+	; --$1B = Activate LM custom trigger $02
+	; --$1C = Activate LM custom trigger $03
+	; --$1D = Activate LM custom trigger $04
+	; --$1E = Activate LM custom trigger $05
+	; --$1F = Activate LM custom trigger $06
+	; --$20 = Activate LM custom trigger $07
+	; --$21 = Activate LM custom trigger $08
+	; --$22 = Activate LM custom trigger $09
+	; --$23 = Activate LM custom trigger $0A
+	; --$24 = Activate LM custom trigger $0B
+	; --$25 = Activate LM custom trigger $0C
+	; --$26 = Activate LM custom trigger $0D
+	; --$27 = Activate LM custom trigger $0E
+	; --$28 = Activate LM custom trigger $0F
+	; --$29 = Deactivate LM custom trigger $00
+	; --$2A = Deactivate LM custom trigger $01
+	; --$2B = Deactivate LM custom trigger $02
+	; --$2C = Deactivate LM custom trigger $03
+	; --$2D = Deactivate LM custom trigger $04
+	; --$2E = Deactivate LM custom trigger $05
+	; --$2F = Deactivate LM custom trigger $06
+	; --$30 = Deactivate LM custom trigger $07
+	; --$31 = Deactivate LM custom trigger $08
+	; --$32 = Deactivate LM custom trigger $09
+	; --$33 = Deactivate LM custom trigger $0A
+	; --$34 = Deactivate LM custom trigger $0B
+	; --$35 = Deactivate LM custom trigger $0C
+	; --$36 = Deactivate LM custom trigger $0D
+	; --$37 = Deactivate LM custom trigger $0E
+	; --$38 = Deactivate LM custom trigger $0F
+	;
+	; -Switch palace flags. Switch palace blocks will only update on level load.
+	;
+	; --$39 = Toggle green switch palace
+	; --$3A = Toggle yellow switch palace
+	; --$3B = Toggle blue switch palace
+	; --$3C = Toggle red switch palace
+	;
+	; -Activate and deactivate switch palace flags. Same rule as $13-$38
+	;
+	; --$3D = Activate green switch palace
+	; --$3E = Activate yellow switch palace
+	; --$3F = Activate blue switch palace
+	; --$40 = Activate red switch palace
+	; --$41 = Deactivate green switch palace
+	; --$42 = Deactivate yellow switch palace
+	; --$43 = Deactivate blue switch palace
+	; --$44 = Deactivate red switch palace
 		;[List of switch action]
 		wdm
 		LDA !extra_byte_3,x
@@ -180,14 +196,10 @@ macro SwitchAction()
 		BCC .ActivatePSwitch		;>$15-$16: you know what, the label should say everything
 		CMP #$19
 		BCC .DeactivatePSwitch		;>$17-$18
-;		CMP #$29
-;		BCC .CustomTriggersToggle	;>$19-$28
-;		CMP #$39
-;		BCS +
-;		JMP .CustomTriggersToggle	;>$29-$38 (JMP instead of BCC because branch jump limit)
-;		+
-		CMP #$38
-		BCC .CustomTriggersToggle	;>$19-$38
+		CMP #$39
+		BCC .CustomTriggersToggle	;>$19-$38 ($19-$28 and $29-$38)
+		CMP #$45
+		BCC .SwitchPalaceToggle		;>$39-$44
 		RTS				;>Anything else, return (failsafe)
 		
 		.OnOffFlip
@@ -289,6 +301,28 @@ macro SwitchAction()
 			SBC #$17			;>$17-$18 becomes $00-$01
 			TAY
 			JMP .PSwitchToggle_Deactivate
+		.SwitchPalaceToggle
+			LDY #$00
+			CMP #$3D
+			BCC ..ToggleMode	;>$39-$3C
+			INY
+			CMP #$41
+			BCC ..ActivateMode	;>$3D-$40
+			INY
+			..DeactivateMode	;>$41-$44
+			..ToggleMode
+			..ActivateMode
+			SEC
+			SBC ..SwitchPalaceModeOffset,y
+			TAY
+			LDA $1F27|!addr,y
+			EOR #$01
+			STA $1F27|!addr,y
+			RTS
+			..SwitchPalaceModeOffset
+				db $39
+				db $3D
+				db $41
 endmacro
 macro EveryFrameCode()
 	EveryFrameCode:
@@ -332,6 +366,12 @@ macro EveryFrameCode()
 		BCC .BePressedWhenCustTriggerIsOn	;>$19-$28
 		CMP #$39
 		BCC .BePressedWhenCustTriggerIsOff	;>$29-$38
+		CMP #$3D
+		BCC .No					;>$39-$3C
+		CMP #$41
+		BCC .BePressedWhenSwitchPalaceIsOn	;>$3D-$40
+		CMP #$45
+		BCC .BePressedWhenSwitchPalaceIsOff	;>$41-$44
 		.No
 		RTS
 		
@@ -420,6 +460,25 @@ macro EveryFrameCode()
 				...MapFlagNumberingToZero
 				db $19	;>$19-$28 becomes $00-$0F
 				db $29	;>$29-$38 becomes $00-$0F
+		.BePressedWhenSwitchPalaceIsOn
+			SEC
+			SBC #$3D
+			TAY
+			LDA $1F27|!addr,y
+			BNE ..Pressed
+			..NotPressed
+				JSR BeInNonPressedState
+			RTS
+			..Pressed
+				JSR BeInPressedState
+			RTS
+		.BePressedWhenSwitchPalaceIsOff
+			SEC
+			SBC #$41
+			TAY
+			LDA $1F27|!addr,y
+			BEQ .BePressedWhenSwitchPalaceIsOn_Pressed
+			BRA .BePressedWhenSwitchPalaceIsOn_NotPressed
 endmacro
 if !Held_Down_Function != 0
 	macro SwitchActionHeldDown()
@@ -433,6 +492,8 @@ Print "INIT ",pc
 		PHB
 		PHK
 		PLB
+		LDA #!Button_NotPressedOffset	;\So that button caps aren't position weirdly when they spawn on the screen as the player
+		STA !ButtonCapOffset,x		;/comes out of a pipe
 		LDA #$01
 		STA $00
 		JSR EveryFrameCode		;>should be initially pressed?
