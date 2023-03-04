@@ -166,6 +166,7 @@ macro SwitchAction()
 
 	
 		;[List of switch action]
+		wdm
 		LDA !extra_byte_3,x
 		BEQ .OnOffFlip			;>$00: on/off toggle
 		CMP #$03		
@@ -179,12 +180,14 @@ macro SwitchAction()
 		BCC .ActivatePSwitch		;>$15-$16: you know what, the label should say everything
 		CMP #$19
 		BCC .DeactivatePSwitch		;>$17-$18
-		CMP #$29
-		BCC .ActivateCustomTriggers	;>$19-$28
-		CMP #$39
-		BCS +
-		JMP .DeactivateCustomTriggers	;>$29-$38 (JMP instead of BCC because branch jump limit)
-		+
+;		CMP #$29
+;		BCC .CustomTriggersToggle	;>$19-$28
+;		CMP #$39
+;		BCS +
+;		JMP .CustomTriggersToggle	;>$29-$38 (JMP instead of BCC because branch jump limit)
+;		+
+		CMP #$38
+		BCC .CustomTriggersToggle	;>$19-$38
 		RTS				;>Anything else, return (failsafe)
 		
 		.OnOffFlip
@@ -217,7 +220,7 @@ macro SwitchAction()
 					STA $1887|!addr		;/
 				endif
 				RTS
-		.CustomTriggersToggle
+		.CustomTriggersToggle		;>$03-$12, $19-$28 and $29-$38
 			if !sa1 != 0
 				%invoke_snes(..WramAccess)
 				RTS
@@ -234,9 +237,20 @@ macro SwitchAction()
 					PLB
 					LDX $15E9|!addr
 				endif
+				;$03-$12, $19-$28 and $29-$38
+				LDY #$00
+				LDA !extra_byte_3,x
+				CMP #$13
+				BCC ...Toggle		;>Y = $00, $03-$12
+				INY
+				CMP #$29
+				BCC ...Toggle		;>Y = $01, $19-$28
+				INY			;>Y = $02, $29-$38
+				
+				...Toggle
 				LDA !extra_byte_3,x
 				SEC
-				SBC #$03
+				SBC ...CustomTriggerRanges,y
 				STA $00					;>Store custom trigger flags numbering $00-$0F into scratch RAM $00
 				LSR #3					;>divide by 8, and round down to obtain which of the 2 bytes of custom triggers to write to
 				TAX					;>X = $00 for $7FC0FC and X = $01 for $7FC0FD
@@ -254,6 +268,10 @@ macro SwitchAction()
 					PLB
 					RTL
 				endif
+				...CustomTriggerRanges
+				db $03		;\Subtract by these values to map them to $00-$0F, the valid range of custom trigger flag numbers.
+				db $19		;|
+				db $29		;/
 		.SetOnOffOn
 			STZ $14AF|!addr
 			RTS
@@ -271,81 +289,6 @@ macro SwitchAction()
 			SBC #$17			;>$17-$18 becomes $00-$01
 			TAY
 			JMP .PSwitchToggle_Deactivate
-		.ActivateCustomTriggers
-			if !sa1 != 0
-				%invoke_snes(..WramAccess)
-				RTS
-			endif
-			
-			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
-			..WramAccess
-				;Thing I learned about "%invoke_snes(label)":
-				; - The "subroutine" of "label" must end with RTL
-				; - Several processor-related stuff (AXY, processor flags, etc.) are seperate in SA-1, so the X register in this case doesn't carry over.
-				if !sa1 != 0
-					PHB
-					PHK
-					PLB
-					LDX $15E9|!addr
-				endif
-				LDA !extra_byte_3,x
-				SEC
-				SBC #$19
-				STA $00					;>Store custom trigger flags numbering $00-$0F into scratch RAM $00
-				LSR #3					;>divide by 8, and round down to obtain which of the 2 bytes of custom triggers to write to
-				TAX					;>X = $00 for $7FC0FC and X = $01 for $7FC0FD
-				LDA $00
-				AND.b #%00000111			;>Modulo by 8 to make it wraparound 0-7, the bit numbering range of 1-byte
-				TAY					;>Y = $00-$07, corresponding to what bit number of the custom trigger
-				LDA $7FC0FC,x				;\Turn on bits
-				ORA ReadBitPosition,y			;|
-				STA $7FC0FC,x				;/
-				LDX $15E9|!addr				;>Restore sprite slot
-				
-				if !sa1 == 0
-					RTS
-				else
-					PLB
-					RTL
-				endif
-		.DeactivateCustomTriggers
-			if !sa1 != 0
-				%invoke_snes(..WramAccess)
-				RTS
-			endif
-			
-			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
-			..WramAccess
-				;Thing I learned about "%invoke_snes(label)":
-				; - The "subroutine" of "label" must end with RTL
-				; - Several processor-related stuff (AXY, processor flags, etc.) are seperate in SA-1, so the X register in this case doesn't carry over.
-				if !sa1 != 0
-					PHB
-					PHK
-					PLB
-					LDX $15E9|!addr
-				endif
-				LDA !extra_byte_3,x
-				SEC
-				SBC #$29
-				STA $00					;>Store custom trigger flags numbering $00-$0F into scratch RAM $00
-				LSR #3					;>divide by 8, and round down to obtain which of the 2 bytes of custom triggers to write to
-				TAX					;>X = $00 for $7FC0FC and X = $01 for $7FC0FD
-				LDA $00
-				AND.b #%00000111			;>Modulo by 8 to make it wraparound 0-7, the bit numbering range of 1-byte
-				TAY					;>Y = $00-$07, corresponding to what bit number of the custom trigger
-				LDA ReadBitPosition,y			;\Turn off bits
-				EOR.b #%11111111			;|
-				AND $7FC0FC,x				;|
-				STA $7FC0FC,x				;/
-				LDX $15E9|!addr				;>Restore sprite slot
-				
-				if !sa1 == 0
-					RTS
-				else
-					PLB
-					RTL
-				endif
 endmacro
 macro EveryFrameCode()
 	EveryFrameCode:
