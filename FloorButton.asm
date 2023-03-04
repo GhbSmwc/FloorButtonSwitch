@@ -101,35 +101,71 @@ macro SwitchAction()
 	SwitchAction:
 	;Examples:
 	;!extra_byte_3 values:
-	; -$00 = on/off (2-way toggle)
-	; -$01 = blue p-switch (2-way toggle)
-	; -$02 = silver p-switch (2-way toggle)
-	; -$03 = LM custom trigger $00 (2-way toggle)
-	; -$04 = LM custom trigger $01 (2-way toggle)
-	; -$05 = LM custom trigger $02 (2-way toggle)
-	; -$06 = LM custom trigger $03 (2-way toggle)
-	; -$07 = LM custom trigger $04 (2-way toggle)
-	; -$08 = LM custom trigger $05 (2-way toggle)
-	; -$09 = LM custom trigger $06 (2-way toggle)
-	; -$0A = LM custom trigger $07 (2-way toggle)
-	; -$0B = LM custom trigger $08 (2-way toggle)
-	; -$0C = LM custom trigger $09 (2-way toggle)
-	; -$0D = LM custom trigger $0A (2-way toggle)
-	; -$0E = LM custom trigger $0B (2-way toggle)
-	; -$0F = LM custom trigger $0C (2-way toggle)
-	; -$10 = LM custom trigger $0D (2-way toggle)
-	; -$11 = LM custom trigger $0E (2-way toggle)
-	; -$12 = LM custom trigger $0F (2-way toggle)
-	; -$13 = Set on/off switch to ON (if already, should be in its pressed state)*
-	; -$14 = Set on/off switch to OFF (if already, should be in its pressed state)*
-	; -$15 = Activate blue P-Switch (if blue P-switch already on, should be in its pressed state)*
-	; -$16 = Activate silver P-switch (if silver P-switch already on, should be in its pressed state)*
-	; -$17 = Deactivate blue P-Switch (if blue P-switch already off, should be in its pressed state)*
-	; -$18 = Deactivate silver P-switch (if silver P-switch already off, should be in its pressed state)*
+	; -$00 = Toggle on/off
+	; -$01 = Toggle blue p-switch
+	; -$02 = Toggle silver p-switch
+	; -$03 = Toggle LM custom trigger $00
+	; -$04 = Toggle LM custom trigger $01
+	; -$05 = Toggle LM custom trigger $02
+	; -$06 = Toggle LM custom trigger $03
+	; -$07 = Toggle LM custom trigger $04
+	; -$08 = Toggle LM custom trigger $05
+	; -$09 = Toggle LM custom trigger $06
+	; -$0A = Toggle LM custom trigger $07
+	; -$0B = Toggle LM custom trigger $08
+	; -$0C = Toggle LM custom trigger $09
+	; -$0D = Toggle LM custom trigger $0A
+	; -$0E = Toggle LM custom trigger $0B
+	; -$0F = Toggle LM custom trigger $0C
+	; -$10 = Toggle LM custom trigger $0D
+	; -$11 = Toggle LM custom trigger $0E
+	; -$12 = Toggle LM custom trigger $0F
 	;
-	;*Needs code at "EveryFrameCode" (also executes on init) so that when they spawn or at every frame,
-	; will appear pressed.
-	;  re-pressable again.
+	; -These below needs code at "EveryFrameCode" (also executes on init) so that when they spawn or at every frame,
+	;  be in its pressed state.
+	;
+	; -$13 = Set on/off switch to ON (if already, should be in its pressed state)
+	; -$14 = Set on/off switch to OFF (if already, should be in its pressed state)
+	; -$15 = Activate blue P-Switch (if blue P-switch already on, should be in its pressed state)
+	; -$16 = Activate silver P-switch (if silver P-switch already on, should be in its pressed state)
+	; -$17 = Deactivate blue P-Switch (if blue P-switch already off, should be in its pressed state)
+	; -$18 = Deactivate silver P-switch (if silver P-switch already off, should be in its pressed state)
+	; -$19 = Activate LM custom trigger $00
+	; -$1A = Activate LM custom trigger $01
+	; -$1B = Activate LM custom trigger $02
+	; -$1C = Activate LM custom trigger $03
+	; -$1D = Activate LM custom trigger $04
+	; -$1E = Activate LM custom trigger $05
+	; -$1F = Activate LM custom trigger $06
+	; -$20 = Activate LM custom trigger $07
+	; -$21 = Activate LM custom trigger $08
+	; -$22 = Activate LM custom trigger $09
+	; -$23 = Activate LM custom trigger $0A
+	; -$24 = Activate LM custom trigger $0B
+	; -$25 = Activate LM custom trigger $0C
+	; -$26 = Activate LM custom trigger $0D
+	; -$27 = Activate LM custom trigger $0E
+	; -$28 = Activate LM custom trigger $0F
+	; -$29 = Deactivate LM custom trigger $00
+	; -$2A = Deactivate LM custom trigger $01
+	; -$2B = Deactivate LM custom trigger $02
+	; -$2C = Deactivate LM custom trigger $03
+	; -$2D = Deactivate LM custom trigger $04
+	; -$2E = Deactivate LM custom trigger $05
+	; -$2F = Deactivate LM custom trigger $06
+	; -$30 = Deactivate LM custom trigger $07
+	; -$31 = Deactivate LM custom trigger $08
+	; -$32 = Deactivate LM custom trigger $09
+	; -$33 = Deactivate LM custom trigger $0A
+	; -$34 = Deactivate LM custom trigger $0B
+	; -$35 = Deactivate LM custom trigger $0C
+	; -$36 = Deactivate LM custom trigger $0D
+	; -$37 = Deactivate LM custom trigger $0E
+	; -$38 = Deactivate LM custom trigger $0F
+	; -$39
+
+	
+		;[List of switch action]
 		LDA !extra_byte_3,x
 		BEQ .OnOffFlip			;>$00: on/off toggle
 		CMP #$03		
@@ -143,6 +179,12 @@ macro SwitchAction()
 		BCC .ActivatePSwitch		;>$15-$16: you know what, the label should say everything
 		CMP #$19
 		BCC .DeactivatePSwitch		;>$17-$18
+		CMP #$29
+		BCC .ActivateCustomTriggers	;>$19-$28
+		CMP #$39
+		BCS +
+		JMP .DeactivateCustomTriggers	;>$29-$38 (JMP instead of BCC because branch jump limit)
+		+
 		RTS				;>Anything else, return (failsafe)
 		
 		.OnOffFlip
@@ -186,32 +228,32 @@ macro SwitchAction()
 				;Thing I learned about "%invoke_snes(label)":
 				; - The "subroutine" of "label" must end with RTL
 				; - Several processor-related stuff (AXY, processor flags, etc.) are seperate in SA-1, so the X register in this case doesn't carry over.
-			if !sa1 != 0
-				PHB
-				PHK
-				PLB
-				LDX $15E9|!addr
-			endif
-			LDA !extra_byte_3,x
-			SEC
-			SBC #$03
-			STA $00					;>Store custom trigger flags numbering $00-$0F into scratch RAM $00
-			LSR #3					;>divide by 8, and round down to obtain which of the 2 bytes of custom triggers to write to
-			TAX					;>X = $00 for $7FC0FC and X = $01 for $7FC0FD
-			LDA $00
-			AND.b #%00001111			;>Modulo by 8 to make it wraparound 0-7, the bit numbering range of 1-byte
-			TAY					;>Y = $00-$07, corresponding to what bit number of the custom trigger
-			LDA $7FC0FC,x				;\Toggle custom trigger flags
-			EOR ReadBitPosition,y			;|
-			STA $7FC0FC,x				;/
-			LDX $15E9|!addr				;>Restore sprite slot
-			
-			if !sa1 == 0
-				RTS
-			else
-				PLB
-				RTL
-			endif
+				if !sa1 != 0
+					PHB
+					PHK
+					PLB
+					LDX $15E9|!addr
+				endif
+				LDA !extra_byte_3,x
+				SEC
+				SBC #$03
+				STA $00					;>Store custom trigger flags numbering $00-$0F into scratch RAM $00
+				LSR #3					;>divide by 8, and round down to obtain which of the 2 bytes of custom triggers to write to
+				TAX					;>X = $00 for $7FC0FC and X = $01 for $7FC0FD
+				LDA $00
+				AND.b #%00000111			;>Modulo by 8 to make it wraparound 0-7, the bit numbering range of 1-byte
+				TAY					;>Y = $00-$07, corresponding to what bit number of the custom trigger
+				LDA $7FC0FC,x				;\Toggle custom trigger flags
+				EOR ReadBitPosition,y			;|
+				STA $7FC0FC,x				;/
+				LDX $15E9|!addr				;>Restore sprite slot
+				
+				if !sa1 == 0
+					RTS
+				else
+					PLB
+					RTL
+				endif
 		.SetOnOffOn
 			STZ $14AF|!addr
 			RTS
@@ -229,14 +271,93 @@ macro SwitchAction()
 			SBC #$17			;>$17-$18 becomes $00-$01
 			TAY
 			JMP .PSwitchToggle_Deactivate
+		.ActivateCustomTriggers
+			if !sa1 != 0
+				%invoke_snes(..WramAccess)
+				RTS
+			endif
+			
+			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
+			..WramAccess
+				;Thing I learned about "%invoke_snes(label)":
+				; - The "subroutine" of "label" must end with RTL
+				; - Several processor-related stuff (AXY, processor flags, etc.) are seperate in SA-1, so the X register in this case doesn't carry over.
+				if !sa1 != 0
+					PHB
+					PHK
+					PLB
+					LDX $15E9|!addr
+				endif
+				LDA !extra_byte_3,x
+				SEC
+				SBC #$19
+				STA $00					;>Store custom trigger flags numbering $00-$0F into scratch RAM $00
+				LSR #3					;>divide by 8, and round down to obtain which of the 2 bytes of custom triggers to write to
+				TAX					;>X = $00 for $7FC0FC and X = $01 for $7FC0FD
+				LDA $00
+				AND.b #%00000111			;>Modulo by 8 to make it wraparound 0-7, the bit numbering range of 1-byte
+				TAY					;>Y = $00-$07, corresponding to what bit number of the custom trigger
+				LDA $7FC0FC,x				;\Turn on bits
+				ORA ReadBitPosition,y			;|
+				STA $7FC0FC,x				;/
+				LDX $15E9|!addr				;>Restore sprite slot
+				
+				if !sa1 == 0
+					RTS
+				else
+					PLB
+					RTL
+				endif
+		.DeactivateCustomTriggers
+			if !sa1 != 0
+				%invoke_snes(..WramAccess)
+				RTS
+			endif
+			
+			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
+			..WramAccess
+				;Thing I learned about "%invoke_snes(label)":
+				; - The "subroutine" of "label" must end with RTL
+				; - Several processor-related stuff (AXY, processor flags, etc.) are seperate in SA-1, so the X register in this case doesn't carry over.
+				if !sa1 != 0
+					PHB
+					PHK
+					PLB
+					LDX $15E9|!addr
+				endif
+				LDA !extra_byte_3,x
+				SEC
+				SBC #$29
+				STA $00					;>Store custom trigger flags numbering $00-$0F into scratch RAM $00
+				LSR #3					;>divide by 8, and round down to obtain which of the 2 bytes of custom triggers to write to
+				TAX					;>X = $00 for $7FC0FC and X = $01 for $7FC0FD
+				LDA $00
+				AND.b #%00000111			;>Modulo by 8 to make it wraparound 0-7, the bit numbering range of 1-byte
+				TAY					;>Y = $00-$07, corresponding to what bit number of the custom trigger
+				LDA ReadBitPosition,y			;\Turn off bits
+				EOR.b #%11111111			;|
+				AND $7FC0FC,x				;|
+				STA $7FC0FC,x				;/
+				LDX $15E9|!addr				;>Restore sprite slot
+				
+				if !sa1 == 0
+					RTS
+				else
+					PLB
+					RTL
+				endif
 endmacro
 macro EveryFrameCode()
 	EveryFrameCode:
-		;Input: $00 = Is running under init: $00 = no, $01 = yes (switch will appear instantly pressed or not). $14C8 cannot be used to check if the sprite is running on init or main.
+		;Input:
+		;-RAM $00 (1 byte): Is running under init:
+		; -$00 = no
+		; -$01 = yes (switch will appear instantly pressed or not). $14C8 cannot be used to check if the sprite is running on init or main.
+		; This is so that switches appear pressed when they spawn.
 		
 		.PressedPermanentlyBit
 			;This code is placed here rather than on init so if you have 2 switches on-screen on the same permanent flag, both will be pressed, rather than
-			;only one pressed with the other being pressed when despawning and respawning.
+			;only one pressed with the other being pressed when despawning and then respawning.
 			LDA !extra_byte_1,x
 			BIT.b #%00000001
 			BEQ ..NotPermanent
@@ -253,7 +374,7 @@ macro EveryFrameCode()
 			BNE .Pressed				;>...Clear, then spawn as "not pressed"
 			
 			..NotPermanent
-		
+		;[List of switch action]
 		LDA !extra_byte_3,x			;\Check if extra byte would make the switch perform action that would make other switches be pressed
 		CMP #$13				;|
 		BCC .No					;|
@@ -264,6 +385,10 @@ macro EveryFrameCode()
 		BCC .BePressedWhenPSwitchIsOn		;>$15-$16
 		CMP #$19
 		BCC .BePressedWhenPSwitchIsOff		;>$17-$18
+		CMP #$29
+		BCC .BePressedWhenCustTriggerIsOn	;>$19-$28
+		CMP #$39
+		BCC .BePressedWhenCustTriggerIsOff	;>$29-$38
 		.No
 		RTS
 		
@@ -276,31 +401,12 @@ macro EveryFrameCode()
 			BEQ .NonPressed			;\if On/off switch is OFF, be non-pressed
 			BRA .Pressed			;/(pressed if OFF)
 		.Pressed
-			LDA #$02			;\Pressed state (stays pressed)
-			STA !ButtonState,x		;/
-			LDA $00				;>When spawning, appear pressed
-			BEQ ..NotInit
-			..Init
-				LDA.b #!Button_PressedOffset
-				STA !ButtonCapOffset,x
-			..NotInit
+			JSR BeInPressedState
 			RTS
 		.NonPressed
-			LDA !ButtonState,x		;\Don't forcibly pop back up under the player's feet or if it is held down by other sprite.
-			BEQ ..AlreadyNotPressed		;/
-			LDA #$01
-			STA !ButtonState,x		;\Non-pressed state (actually, it is pressed, but won't rise up until mario or sprite gets off switch)
-			STZ !ButtonPressedTimer,x	;/
-			LDA $00				;>When spawning, appeared non-pressed
-			BEQ ..NotInit
-			..Init
-				LDA.b #!Button_NotPressedOffset
-				STA !ButtonCapOffset,x
-			..NotInit
-			..AlreadyNotPressed
+			JSR BeInNonPressedState
 			RTS
 		.BePressedWhenPSwitchIsOn
-			wdm
 			SEC
 			SBC #$15
 			TAY
@@ -316,6 +422,61 @@ macro EveryFrameCode()
 			CMP #$02
 			BCC .Pressed
 			BRA .NonPressed
+		.BePressedWhenCustTriggerIsOn	;>$19-$28
+		.BePressedWhenCustTriggerIsOff	;>$29-$38
+			if !sa1 != 0
+				%invoke_snes(..WramAccess)
+				RTS
+			endif
+			
+			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
+			..WramAccess
+				;Thing I learned about "%invoke_snes(label)":
+				; - The "subroutine" of "label" must end with RTL
+				; - Several processor-related stuff (AXY, processor flags, etc.) are seperate in SA-1, so the X register in this case doesn't carry over.
+				if !sa1 != 0
+					PHB
+					PHK
+					PLB
+					LDX $15E9|!addr
+				endif
+				LDY #$00
+				LDA !extra_byte_3,x
+				CMP #$29
+				BCC ...Activate	;>If $19-$28
+				...Deactivate ;>Otherwise $29-$38
+					INY
+				...Activate
+				SEC
+				SBC ...MapFlagNumberingToZero,y
+				STA $01
+				LDA !extra_byte_3,x
+				CMP #$29
+				BCC ...PressedIfActivated
+				
+				...PressedIfDeactivated
+					JSR ReadCustomTriggerBit
+					BEQ ...Pressed
+					BRA ...NotPressed
+				...PressedIfActivated
+					JSR ReadCustomTriggerBit
+					BNE ...Pressed
+				...NotPressed
+					JSR BeInNonPressedState
+					BRA ...Done
+				...Pressed
+					JSR BeInPressedState
+				...Done
+				if !sa1 == 0
+					RTS
+				else
+					PLB
+					RTL
+				endif
+				
+				...MapFlagNumberingToZero
+				db $19	;>$19-$28 becomes $00-$0F
+				db $29	;>$29-$38 becomes $00-$0F
 endmacro
 if !Held_Down_Function != 0
 	macro SwitchActionHeldDown()
@@ -801,7 +962,7 @@ Button:
 		db $FF		;>f Displacement is $80-$FF (negative value)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-;Graphics routine
+;Graphics routine (JSR)
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -934,7 +1095,7 @@ HandleGFXUpsideDown:
 		STA.w ($0303+(3*4))|!Base2,y	;/>Right half
 	JMP FinishOAM
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;Trigger switch
+;Trigger switch (JSR)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 TriggerSwitch:
 	LDA !ButtonState,x
@@ -969,7 +1130,7 @@ TriggerSwitch:
 	RTS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-;Sprite touch switch check
+;Sprite touch switch check (JSR)
 ;Output:
 ; -Carry: Clear if no contact with dropped/kicked sprite, set
 ;  otherwise
@@ -1020,3 +1181,61 @@ SpriteTouchSwitchCheck:
 	.UpsideDownSwitchHitbox
 	db $00					;>Hitbox Y position for floor switches
 	db $08					;>Same as above but for ceiling switches
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;Pressed states (JSR), had to be its own subroutine for SA-1
+;compatibility reasons (if access to WRAM is needed, such as
+;LM's custom trigger flags).
+;
+;Input:
+; -RAM $00: $00 = not init, $01 = init (buttons appear pressed
+;   or not pressed instantly)
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+BeInPressedState:
+	LDA #$02			;\Pressed state (stays pressed)
+	STA !ButtonState,x		;/
+	LDA $00				;>When spawning, appear pressed
+	BEQ .NotInit
+	.Init
+		LDA.b #!Button_PressedOffset
+		STA !ButtonCapOffset,x
+	.NotInit
+	RTS
+BeInNonPressedState:
+	LDA !ButtonState,x		;\Don't forcibly pop back up under the player's feet or if it is held down by other sprite.
+	BEQ .AlreadyNotPressed		;/
+	LDA #$01
+	STA !ButtonState,x		;\Non-pressed state (actually, it is pressed, but won't rise up until mario or sprite gets off switch)
+	STZ !ButtonPressedTimer,x	;/
+	LDA $00				;>When spawning, appeared non-pressed
+	BEQ .NotInit
+	.Init
+		LDA.b #!Button_NotPressedOffset
+		STA !ButtonCapOffset,x
+	.NotInit
+	.AlreadyNotPressed
+	RTS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; Read custom trigger flags
+;
+; Input:
+;  -$01: What bit number to check ($00-$0F)
+; Output:
+;  -A: Use BEQ/BNE to check:
+;   $00: If checked bit is clear
+;   Nonzero_Value: If checked bit is set.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ReadCustomTriggerBit:
+	LDA $01					;\X = what byte of custom triggers, Y = what bit of custom triggers
+	AND.b #%00000111			;|
+	TAY					;|
+	LDA $01					;|
+	LSR #3					;|
+	TAX					;|
+	LDA $7FC0FC,x				;|
+	AND ReadBitPosition,y			;/
+	LDX $15E9|!addr				;>Restore sprite slot
+	CMP #$00				;>Compare with A, not X
+	RTS
