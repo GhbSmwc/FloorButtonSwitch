@@ -80,7 +80,7 @@
 ;Sprite defines
  ;Best not to modify these
   ;Sprite tables
-   !ButtonState = !1534			;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed, $02 = permanently pressed
+   !ButtonState = !1534			;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed (also held down), $02 = permanently pressed
    !ButtonPressedTimer = !1540		;>Timer for when the switch is temporally pressed before popping back out (measured when the button cap starts moving downwards, not when it reaches the bottom)
    !ButtonCapOffset = !1504		;>How far down the switch moved, in pixels. NOTE: If switch is upside down, the values are also inverted, increasing would have the cap of the button moves upwards towards the base of the switch.
    !ButtonCapOffsetFixedPoint = !14EC	;>Same as above but contains fraction bits (allow movement less than a pixel -- this is only used when $01ABCC or any speed-to-position-offset subroutine is called)
@@ -122,12 +122,13 @@ macro SwitchAction()
 	; -$12 = LM custom trigger $0F (2-way toggle)
 	; -$13 = Set on/off switch to ON (if already, should be in its pressed state)*
 	; -$14 = Set on/off switch to OFF (if already, should be in its pressed state)*
+	; -$15 = Activate blue P-Switch (if blue P-switch already on, should be in its pressed state)*
+	; -$16 = Activate silver P-switch (if silver P-switch already on, should be in its pressed state)*
+	; -$17 = Deactivate blue P-Switch (if blue P-switch already off, should be in its pressed state)*
+	; -$18 = Deactivate silver P-switch (if silver P-switch already off, should be in its pressed state)*
 	;
-	;*Needs code on the INIT and code that runs every frame to work properly:
-	;- InitPressedStateCode: so that when the sprite spawns, will appear in its pressed state (permanently pressed) AND have
-	;  !ButtonCapOffset,x set to whatever value is set by !Button_PressedOffset
-	;- EveryFrameCode: checks a given RAM (in this case, the on/off switch flag, $14AF|!addr) so that other switch sprites on-screen
-	;  gets pressed by themselves (they themselves not execute SwitchAction) when one of them is pressed by the player, and becomes
+	;*Needs code at "EveryFrameCode" (also executes on init) so that when they spawn or at every frame,
+	; will appear pressed.
 	;  re-pressable again.
 		LDA !extra_byte_3,x
 		BEQ .OnOffFlip			;>$00: on/off toggle
@@ -138,6 +139,10 @@ macro SwitchAction()
 		BEQ .SetOnOffOn			;>$13: Set on/off to on
 		CMP #$14
 		BEQ .SetOnOffOff		;>$14: Set on/off to off
+		CMP #$17
+		BCC .ActivatePSwitch		;>$15-$16: you know what, the label should say everything
+		CMP #$19
+		BCC .DeactivatePSwitch		;>$17-$18
 		RTS				;>Anything else, return (failsafe)
 		
 		.OnOffFlip
@@ -149,8 +154,10 @@ macro SwitchAction()
 		.PSwitchToggle
 			DEC			;\Map $01-$02 to $00-$01, for offsetting from $14AD
 			TAY			;/
-			LDA $14AD|!addr,y
-			BEQ ..Activate
+			LDA $14AD|!addr,y	;>Y: $00 = blue, $01 = silver
+			CMP #$02		;>A p-switch timer value of 1 is considered "off" and we do not want an overlap (we deactivate the switch by setting it to $01 to prevent music glitches)
+			BCC ..Activate
+			
 			
 			..Deactivate
 				LDA #$01		;\STZ $xxxx,y does not exist. Also, setting this to $00 doesn't reset the music
@@ -212,56 +219,103 @@ macro SwitchAction()
 			LDA #$01
 			STA $14AF|!addr
 			RTS
+		.ActivatePSwitch
+			SEC
+			SBC #$15			;>$15-$16 becomes $00-$01
+			TAY
+			JMP .PSwitchToggle_Activate
+		.DeactivatePSwitch
+			SEC
+			SBC #$17			;>$17-$18 becomes $00-$01
+			TAY
+			JMP .PSwitchToggle_Deactivate
 endmacro
 macro EveryFrameCode()
 	EveryFrameCode:
-		LDA !extra_byte_3,x		;\Check if extra byte would make the switch perform action that would make other switches be pressed
-		CMP #$13			;|
-		BEQ .BePressedWhenOnOffIsOn	;|
-		CMP #$14			;|
-		BEQ .BePressedWhenOnOffIsOff	;/
+		;Input: $00 = Is running under init: $00 = no, $01 = yes (switch will appear instantly pressed or not). $14C8 cannot be used to check if the sprite is running on init or main.
+		
+		.PressedPermanentlyBit
+			;This code is placed here rather than on init so if you have 2 switches on-screen on the same permanent flag, both will be pressed, rather than
+			;only one pressed with the other being pressed when despawning and respawning.
+			LDA !extra_byte_1,x
+			BIT.b #%00000001
+			BEQ ..NotPermanent
+			LDA !extra_byte_4,x			;\BitIndex = FlagNumber % 8
+			AND.b #%00000111			;|
+			TAY					;/
+			LDA !extra_byte_4,x			;\ByteIndex = floor(FlagNumber / 8)
+			LSR #3					;|
+			TAX					;/
+			LDA !Freeram_PressedSwitchMemory,x	;\If the flag we are checking...
+			AND ReadBitPosition,y			;/
+			LDX $15E9|!addr				;>Restore current sprite slot
+			CMP #$00				;>Compare with A, not X
+			BNE .Pressed				;>...Clear, then spawn as "not pressed"
+			
+			..NotPermanent
+		
+		LDA !extra_byte_3,x			;\Check if extra byte would make the switch perform action that would make other switches be pressed
+		CMP #$13				;|
+		BCC .No					;|
+		BEQ .BePressedWhenOnOffIsOn		;|
+		CMP #$14				;|
+		BEQ .BePressedWhenOnOffIsOff		;/
+		CMP #$17
+		BCC .BePressedWhenPSwitchIsOn		;>$15-$16
+		CMP #$19
+		BCC .BePressedWhenPSwitchIsOff		;>$17-$18
+		.No
 		RTS
 		
 		.BePressedWhenOnOffIsOn
 			LDA $14AF|!addr
-			BNE .NonPressed
-			LDA #$02
-			STA !ButtonState,x
-			RTS
+			BNE .NonPressed			;\if On/off switch is ON, be non-pressed
+			BRA .Pressed			;/(pressed if ON)
 		.BePressedWhenOnOffIsOff
 			LDA $14AF|!addr
-			BEQ .NonPressed
-			LDA #$02
-			STA !ButtonState,x
+			BEQ .NonPressed			;\if On/off switch is OFF, be non-pressed
+			BRA .Pressed			;/(pressed if OFF)
+		.Pressed
+			LDA #$02			;\Pressed state (stays pressed)
+			STA !ButtonState,x		;/
+			LDA $00				;>When spawning, appear pressed
+			BEQ ..NotInit
+			..Init
+				LDA.b #!Button_PressedOffset
+				STA !ButtonCapOffset,x
+			..NotInit
 			RTS
 		.NonPressed
-			STZ !ButtonState,x
+			LDA !ButtonState,x		;\Don't forcibly pop back up under the player's feet or if it is held down by other sprite.
+			BEQ ..AlreadyNotPressed		;/
+			LDA #$01
+			STA !ButtonState,x		;\Non-pressed state (actually, it is pressed, but won't rise up until mario or sprite gets off switch)
+			STZ !ButtonPressedTimer,x	;/
+			LDA $00				;>When spawning, appeared non-pressed
+			BEQ ..NotInit
+			..Init
+				LDA.b #!Button_NotPressedOffset
+				STA !ButtonCapOffset,x
+			..NotInit
+			..AlreadyNotPressed
 			RTS
-endmacro
-macro InitPressedStateCode()
-	InitPressedStateCode:
-		LDA !extra_byte_3,x		;\Check if extra byte would make the switch perform action that would make other switches be pressed
-		CMP #$13			;|
-		BEQ .BePressedWhenOnOffIsOn	;|
-		CMP #$14			;|
-		BEQ .BePressedWhenOnOffIsOff	;/
-		RTS
-		
-		.BePressedWhenOnOffIsOn
-			LDA $14AF|!addr
-			BNE .NotPressed
+		.BePressedWhenPSwitchIsOn
+			wdm
+			SEC
+			SBC #$15
+			TAY
+			LDA $14AD|!addr,y
+			CMP #$02
+			BCC .NonPressed
 			BRA .Pressed
-		.BePressedWhenOnOffIsOff
-			LDA $14AF|!addr
-			BEQ .NotPressed
-		.Pressed
-			LDA.b #!Button_PressedOffset
-			STA !ButtonCapOffset,x
-			RTS
-		.NotPressed
-			LDA.b #!Button_NotPressedOffset
-			STA !ButtonCapOffset,x
-			RTS
+		.BePressedWhenPSwitchIsOff
+			SEC
+			SBC #$17
+			TAY
+			LDA $14AD|!addr,y
+			CMP #$02
+			BCC .Pressed
+			BRA .NonPressed
 endmacro
 if !Held_Down_Function != 0
 	macro SwitchActionHeldDown()
@@ -275,24 +329,25 @@ Print "INIT ",pc
 		PHB
 		PHK
 		PLB
-		.SwitchOffsetBasedOnUpsidedownOrNot
-			LDY #$00
-			LDA !extra_byte_1,x
-			BIT.b #%00010000
-			BEQ +
-			INY
-			+
-			LDA !D8,x
-			CLC
-			ADC.b SwitchSpriteYSpawnOffset,y
-			STA !D8,x
-			LDA !14D4,x
-			ADC SwitchSpriteYSpawnOffsetHigh,y
-			STA !14D4,x
-		.StartOutPressedCode
-			JSR InitPressedStateCode
+		LDA #$01
+		STA $00
+		JSR EveryFrameCode		;>should be initially pressed?
+		.SwitchOffsetBasedOnUpsidedownOrNot		;\Switch position itself to be mounted on surfaces
+			LDY #$00				;|
+			LDA !extra_byte_1,x			;|
+			BIT.b #%00010000			;|
+			BEQ +					;|
+			INY					;|
+			+					;|
+			LDA !D8,x				;|
+			CLC					;|
+			ADC.b SwitchSpriteYSpawnOffset,y	;|
+			STA !D8,x				;|
+			LDA !14D4,x				;|
+			ADC SwitchSpriteYSpawnOffsetHigh,y	;|
+			STA !14D4,x				;/
 	
-		.HandleLayer2SpawnPosition
+		.HandleLayer2SpawnPosition	;>Same as above but on moving layer 2
 			LDA !extra_byte_1,x
 			BIT.b #%01000000
 			BEQ ..NotLayer2
@@ -326,26 +381,6 @@ Print "INIT ",pc
 			SBC $01
 			STA !14E0,x
 			..NotLayer2
-		.PressedPermanentlyBit
-			LDA !extra_byte_1,x
-			BIT.b #%00000001
-			BEQ ..NotPermanent
-			LDA !extra_byte_4,x			;\BitIndex = FlagNumber % 8
-			AND.b #%00000111			;|
-			TAY					;/
-			LDA !extra_byte_4,x			;\ByteIndex = floor(FlagNumber / 8)
-			LSR #3					;|
-			TAX					;/
-			LDA !Freeram_PressedSwitchMemory,x	;\If the flag we are checking...
-			AND ReadBitPosition,y			;/
-			LDX $15E9|!addr				;>Restore current sprite slot
-			CMP #$00				;>Compare with A, not X
-			BEQ ..NotPressed			;>...Clear, then spawn as "not pressed"
-			..Pressed
-				LDA #$02			;\...Otherwise spawn in a pressed state
-				STA !ButtonState,x		;/
-			..NotPressed
-			..NotPermanent
 		PLB
 		RTL
 	
@@ -393,11 +428,13 @@ Button:
 	+
 	
 	.RunMain
+		STZ $00
 		JSR EveryFrameCode
 		..ButtonCapPopOut
 			LDA !ButtonState,x		;\If switch isn't temporally pressed down, skip
-			CMP #$01			;|
-			BNE ...NoPop			;/
+			BEQ ...NoPop			;/
+			CMP #$02
+			BEQ ...NoPop
 			LDA !extra_byte_1,x		;\If set to allow pressing without the Dpad, skip (this would allow player to use the switch without having to get off of it)
 			AND.b #%00000010		;/
 			BNE ...SkipPlayerHoldingItDown	;>If switch requires D-pad pressing down, allow switch to pop back out even if player is touching it
@@ -750,7 +787,6 @@ Button:
 		%SwitchActionHeldDown()
 	endif
 	%EveryFrameCode()
-	%InitPressedStateCode()
 	PlayerFeetOffset:
 		db $18		;>Not on yoshi
 		db $28		;\On yoshi
