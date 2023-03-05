@@ -76,6 +76,8 @@
   ;P-switch mode
    !NoMusic = 0			;>0 = Allow p-switch music, 1 = no (if you've using AddmusicK and disabled the P-switch music)
    !ScreenShake = $20		;>0 = no, any number = yes and how long, in frames
+  ;MarioVsDK switches and blocks
+   !ManuelExanimationSlotToUse = $00	;>Exanimation slot to use. Use only $00-$0F.
 
 ;Sprite defines
  ;Best not to modify these
@@ -181,6 +183,19 @@ macro SwitchAction()
 	; --$42 = Deactivate yellow switch palace
 	; --$43 = Deactivate blue switch palace
 	; --$44 = Deactivate red switch palace
+	;
+	; -Mario vs. Donkey kong switches
+	;  Notes:
+	;  -ManuelExanimationValue == $00: Blue
+	;  -ManuelExanimationValue == $01: Red
+	;  -ManuelExanimationValue == $02: Yellow
+	;  How this works is when activating any of these colors will have all other colors deactivated, functioning as a mutually exclusive activated colors.
+	;  Because of this, it also utilizes the same rule as $13-$38
+	;
+	; --$45 = Blue mode
+	; --$46 = Red mode
+	; --$47 = Yellow mode
+	;
 		;[List of switch action]
 		wdm
 		LDA !extra_byte_3,x
@@ -200,6 +215,10 @@ macro SwitchAction()
 		BCC .CustomTriggersToggle	;>$19-$38 ($19-$28 and $29-$38)
 		CMP #$45
 		BCC .SwitchPalaceToggle		;>$39-$44
+		CMP #$48
+		BCS +				;>Branch out of range
+		JMP .MVDKSwitch			;>$45-$47
+		+
 		RTS				;>Anything else, return (failsafe)
 		
 		.OnOffFlip
@@ -323,6 +342,29 @@ macro SwitchAction()
 				db $39
 				db $3D
 				db $41
+		.MVDKSwitch
+			if !sa1 != 0
+				%invoke_snes(..WramAccess)
+				RTS
+			endif
+			
+			..WramAccess
+				if !sa1 != 0
+					PHB
+					PHK
+					PLB
+					LDX $15E9|!addr
+				endif
+				LDA !extra_byte_3,x
+				SEC
+				SBC #$45		;$45-$47 -> $00-$02
+				STA $7FC070+!ManuelExanimationSlotToUse
+				if !sa1 == 0
+					RTS
+				else
+					PLB
+					RTL
+				endif
 endmacro
 macro EveryFrameCode()
 	EveryFrameCode:
@@ -372,6 +414,8 @@ macro EveryFrameCode()
 		BCC .BePressedWhenSwitchPalaceIsOn	;>$3D-$40
 		CMP #$45
 		BCC .BePressedWhenSwitchPalaceIsOff	;>$41-$44
+		CMP #$48
+		BCC .BePressedIfMVDKSwitchModeMatch	;>$45-$47
 		.No
 		RTS
 		
@@ -479,6 +523,36 @@ macro EveryFrameCode()
 			LDA $1F27|!addr,y
 			BEQ .BePressedWhenSwitchPalaceIsOn_Pressed
 			BRA .BePressedWhenSwitchPalaceIsOn_NotPressed
+		.BePressedIfMVDKSwitchModeMatch
+			if !sa1 != 0
+				%invoke_snes(..WramAccess)
+				RTS
+			endif
+			
+			..WramAccess
+				if !sa1 != 0
+					PHB
+					PHK
+					PLB
+					LDX $15E9|!addr
+				endif
+				LDA !extra_byte_3,x
+				SEC
+				SBC #$45		;$45-$47 -> $00-$02
+				CMP $7FC070+!ManuelExanimationSlotToUse
+				BNE ...NotPressed
+				...Pressed
+					JSR BeInPressedState
+					BRA ...Done
+				...NotPressed
+					JSR BeInNonPressedState
+				...Done
+				if !sa1 == 0
+					RTS
+				else
+					PLB
+					RTL
+				endif
 endmacro
 if !Held_Down_Function != 0
 	macro SwitchActionHeldDown()
