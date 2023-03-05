@@ -16,6 +16,19 @@
 		BEQ -
 		STZ $018A
 	endmacro
+	macro MVDK_SolidBlocks(ManTrigger)
+		LDA <ManTrigger>
+		if !WhichManuelFrameSolid != $00	;>If statement so redundant CMP #$00 is not included 
+			CMP #!WhichManuelFrameSolid
+		endif
+		BEQ .Solid
+		RTL				;>If colors not match, be passable (or whatever default behavior set by list.txt or LM)
+		.Solid
+			LDY #$01		;\Act like a solid block, tile $130 (cement block)
+			LDA #$30		;|
+			STA $1693|!addr		;/
+			RTL
+	endmacro
 db $37
 JMP MarioBelow : JMP MarioAbove : JMP MarioSide
 JMP SpriteV : JMP SpriteH : JMP MarioCape : JMP MarioFireball
@@ -23,54 +36,30 @@ JMP TopCorner : JMP BodyInside : JMP HeadInside
 ; JMP WallFeet : JMP WallBody ; when using db $37
 
 
-if !sa1 == 0
-	MarioBelow:
-	MarioAbove:
-	MarioSide:
-	TopCorner:
-	BodyInside:
-	HeadInside:
-	WallFeet:
-	WallBody:
-	SpriteV:
-	SpriteH:
-	MarioFireball:
-endif
-MainCode:
-	LDA $7FC070+!ManuelExanimationSlotToUse
-	if !WhichManuelFrameSolid != $00	;>If statement so redundant CMP #$00 is not included 
-		CMP #!WhichManuelFrameSolid
+MarioBelow:
+MarioAbove:
+MarioSide:
+TopCorner:
+BodyInside:
+HeadInside:
+WallFeet:
+WallBody:
+SpriteV:
+SpriteH:
+MarioFireball:
+	if !sa1 != 0
+		%invoke_snes(WramAccess)
+		%MVDK_SolidBlocks($3100)
+	else
+		%MVDK_SolidBlocks($7FC070+!ManuelExanimationSlotToUse)
 	endif
-	BEQ .Solid
-	RTL				;>If colors not match, be passable (or whatever default behavior set by list.txt or LM)
-	.Solid
-		LDY #$01		;\Act like a solid block, tile $130 (cement block)
-		LDA #$30		;|
-		STA $1693|!addr		;/
-		RTL
+MainCode:
 MarioCape:
 RTL
 if !sa1 != 0
-	MarioBelow:
-	MarioAbove:
-	MarioSide:
-	TopCorner:
-	BodyInside:
-	HeadInside:
-	WallFeet:
-	WallBody:
-	SpriteV:
-	SpriteH:
-	MarioFireball:
-	%invoke_snes(WramAccess)
-	RTL
 	WramAccess:
-		PHB			;\Registers and processor flags aren't kept when switching between SA-1 and non-SA-1.
-		PHK			;|
-		PLB			;|
-		LDX $15E9|!addr		;/
-		JSL MainCode
-		PLB
+		LDA $7FC070+!ManuelExanimationSlotToUse		;\Store a copy of $7FC0FC (cannot be accessed via SA-1) to a scratch RAM that is accessible to SA-1
+		STA $3100					;/
 		RTL
 endif
 
