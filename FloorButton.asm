@@ -26,14 +26,14 @@
 ; Recommend settings or settings you normally want: $28 ("normal" switch), $38 ("upside down normal switch").
 ;
 ;extra_byte_2: color for YXPPCCCT switch cap:
-; $00 = Palette 0 (LM row number $08)
-; $02 = Palette 1 (LM row number $09)
-; $04 = Palette 2 (LM row number $0A)
-; $06 = Palette 3 (LM row number $0B)
-; $08 = Palette 4 (LM row number $0C)
-; $0A = Palette 5 (LM row number $0D)
-; $0C = Palette 6 (LM row number $0E)
-; $0E = Palette 7 (LM row number $0F)
+; $00 = Palette 0 (LM row number $08, Default color: Brown)
+; $02 = Palette 1 (LM row number $09, Default color: Grey)
+; $04 = Palette 2 (LM row number $0A, Default color: Yellow)
+; $06 = Palette 3 (LM row number $0B, Default color: Blue)
+; $08 = Palette 4 (LM row number $0C, Default color: Red)
+; $0A = Palette 5 (LM row number $0D, Default color: green)
+; $0C = Palette 6 (LM row number $0E, Default color: Depends on what sprite palette)
+; $0E = Palette 7 (LM row number $0F, Default color: Depends on what sprite palette)
 ;extra_byte_3: Custom switch action (see macro below).
 ;extra_byte_4: When extra_byte_1'ss P bit is set, this acts as a "flag number" to determine what bit to set
 ; on !Freeram_PressedSwitchMemory.
@@ -59,8 +59,8 @@
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
  
  ;Pro tip: Asar allows entering hexadecimal signed numbers without using two's complement ("$FF" can be entered as "-$01"), you don't need to convert.
-  !Button_NotPressedOffset = $02	;>Y position (relative to sprite's origin) of button cap when not pressed (can be negative ($80-$FF) for higher positions).
-  !Button_PressedOffset = $05		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressing (can be negative ($80-$FF) for higher positions).
+  !Button_NotPressedOffset = $01	;>Y position (relative to sprite's origin) of button cap when not pressed (can be negative ($80-$FF) for higher positions).
+  !Button_PressedOffset = $04		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressing (can be negative ($80-$FF) for higher positions).
  
  !Held_Down_Function = 0		;>0 = No, 1 = include code that runs every frame while the switch is pressed (see "SwitchActionHeldDown")
  
@@ -197,24 +197,42 @@ macro SwitchAction()
 	; --$47 = Yellow mode
 	;
 		;[List of switch action]
-		wdm
+		;On SA-1, because the code is much longer, code is more prone to branch bound issues.
 		LDA !extra_byte_3,x
 		BEQ .OnOffFlip			;>$00: on/off toggle
 		CMP #$03		
 		BCC .PSwitchToggle		;>$01: blue p-switch, $02: silver
 		CMP #$13		
 		BCC .CustomTriggersToggle	;>$03-$12: custom triggers
-		BEQ .SetOnOffOn			;>$13: Set on/off to on
+		;BEQ .SetOnOffOn			;>$13: Set on/off to on
+		BNE +
+		JMP .SetOnOffOn
+		+
 		CMP #$14
-		BEQ .SetOnOffOff		;>$14: Set on/off to off
+		;BEQ .SetOnOffOff		;>$14: Set on/off to off
+		BNE +
+		JMP .SetOnOffOff
+		+
 		CMP #$17
-		BCC .ActivatePSwitch		;>$15-$16: you know what, the label should say everything
+		;BCC .ActivatePSwitch		;>$15-$16: you know what, the label should say everything
+		BCS +
+		JMP .ActivatePSwitch
+		+
 		CMP #$19
-		BCC .DeactivatePSwitch		;>$17-$18
+		;BCC .DeactivatePSwitch		;>$17-$18
+		BCS +
+		JMP .DeactivatePSwitch
+		+
 		CMP #$39
-		BCC .CustomTriggersToggle	;>$19-$38 ($19-$28 and $29-$38)
+		;BCC .CustomTriggersToggle	;>$19-$38 ($19-$28 and $29-$38)
+		BCS +
+		JMP .CustomTriggersToggle
+		+
 		CMP #$45
-		BCC .SwitchPalaceToggle		;>$39-$44
+		;BCC .SwitchPalaceToggle		;>$39-$44
+		BCS +
+		JMP .SwitchPalaceToggle
+		+
 		CMP #$48
 		BCS +				;>Branch out of range
 		JMP .MVDKSwitch			;>$45-$47
@@ -394,6 +412,7 @@ macro EveryFrameCode()
 			
 			..NotPermanent
 		;[List of switch action]
+		;On SA-1, because the code is much longer, code is more prone to branch bound issues.
 		LDA !extra_byte_3,x			;\Check if extra byte would make the switch perform action that would make other switches be pressed
 		CMP #$13				;|
 		BCC .No					;|
@@ -411,11 +430,20 @@ macro EveryFrameCode()
 		CMP #$3D
 		BCC .No					;>$39-$3C
 		CMP #$41
-		BCC .BePressedWhenSwitchPalaceIsOn	;>$3D-$40
+		;BCC .BePressedWhenSwitchPalaceIsOn	;>$3D-$40
+		BCS +
+		JMP .BePressedWhenSwitchPalaceIsOn
+		+
 		CMP #$45
-		BCC .BePressedWhenSwitchPalaceIsOff	;>$41-$44
+		;BCC .BePressedWhenSwitchPalaceIsOff	;>$41-$44
+		BCS +
+		JMP .BePressedWhenSwitchPalaceIsOff
+		+
 		CMP #$48
-		BCC .BePressedIfMVDKSwitchModeMatch	;>$45-$47
+		;BCC .BePressedIfMVDKSwitchModeMatch	;>$45-$47
+		BCS +
+		JMP .BePressedIfMVDKSwitchModeMatch
+		+
 		.No
 		RTS
 		
@@ -942,7 +970,9 @@ Button:
 				SBC $00						;/
 				STA $0E
 				SEP #$20					;\This is a "platform pass fix": https://www.smwcentral.net/?p=section&a=details&id=13557 - this time, instead of using [MarioXYSpeedRelativeToSprite = MarioXYSpeed - SpriteXYspeed], we do
+				BEQ +						;>Bugfix if cape mario sticks to the ceiling, his Y speed is set to $00 and not trigger switches.
 				BPL ...NotPressingSwitch			;/[MarioXYRelativeToSprite = MarioXYPos - SpriteXYPos] twice, before and after moving the cap up and down. But this is upside down.
+				+
 				;I'm avoiding using JSL $01B44F (solid sprite subroutine) because the hitbox of that may have a flaw the player could clip into a layer 1 block and trigger the "mario stands on top" and be able to 1-frame jump off, akin to the walljump glitch
 				JSL $03B69F|!BankB			;>Get sprite clipping A (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDA $05					;\Modify Y position of sprite

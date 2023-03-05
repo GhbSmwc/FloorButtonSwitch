@@ -1,0 +1,11 @@
+500:0025 ExanimationBlocks/CustTrigger00_On_Solid.asm
+501:0025 ExanimationBlocks/CustTrigger00_Off_Solid.asm
+502:0025 ExanimationBlocks/CustTrigger01_On_Solid.asm
+503:0025 ExanimationBlocks/CustTrigger01_Off_Solid.asm
+504:0025 ExanimationBlocks/CustTrigger02_On_Solid.asm
+505:0025 ExanimationBlocks/CustTrigger02_Off_Solid.asm
+506:0025 ExanimationBlocks/CustTrigger03_On_Solid.asm
+507:0025 ExanimationBlocks/CustTrigger03_Off_Solid.asm
+508:0025 ExanimationBlocks/ManTrigger_MVDK_Blue.asm
+509:0025 ExanimationBlocks/ManTrigger_MVDK_Red.asm
+50A:0025 ExanimationBlocks/ManTrigger_MVDK_Yellow.asm

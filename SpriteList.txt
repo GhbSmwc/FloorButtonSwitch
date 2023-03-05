@@ -1,0 +1,2 @@
+;Had to be an arbitrary ID value of $02 and this list txt file exists because it was tested using other sprites. 
+02	FloorButton.json
