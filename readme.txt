@@ -11,3 +11,13 @@ the setting of the sprite.
 	
 	For sprites, Have this: "02	FloorButton.json" in pixi's sprite list. Why $02? Because I was testing other sprites, and replacing sprites
 	in LM is tedious.
+
+-Changelog
+	2023-03-06 v1.1
+		-Slight graphical improvements on the button cap (a rounder top needs to have the shades of color sloped with that roundness)
+		-Changed the way the button base frame (the orange ring the cap sinks into) appears. Previously both the base frame and the masking
+		 graphic were the same graphic, and was intended so if you wanted decoration tiles behind that switch, you would have a floating
+		 switch cap and need to have the base of the switch have tile priority and have the layer 1/2 tile have priority to cover that.
+		 Now, the base frame graphic and the masking graphic are separate tiles, with the base frame having priority and the masking
+		 graphic behind layer 1 and 2. This also renders
+	2023-03-05 v1.0: First release
