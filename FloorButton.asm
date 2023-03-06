@@ -12,10 +12,8 @@
 ;     right-side-up switch). Good for if you have a bunch of switches on the floor and close to
 ;     each other and do not want the player to accidentally trigger them (make sure you inform
 ;     the player though).
-;-B = Base of switch in front of layer 1 flag: 0 = behind, 1 = in front (but
-;     behind tiles with priority). Have this set to 1 if you plan on having the
-;     switch in front of decoration tiles to avoid the switch cap from being
-;     masked (cut off) by the behind-the-foreground switch base.
+;-B = Unused, previously was used for the base to be in front of layer 1 if you want this switch
+;     to have decoration tiles behind it.
 ;-S = Activate by carryable/kicked sprites: 0 = no, 1 = yes.
 ;-U = Upside down flag: 0 = on floor facing upwards, 1 = ceiling facing downwards.
 ;-H = Solid hitbox to player: 0 = no, 1 = yes.
@@ -55,7 +53,8 @@
   ; And what flag within a byte is simply [FlagNumber % 8] where the "%" represents a modulo operator
 ;Settings
  !Tile_ButtonCap = $85			;>tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
- !Tile_ButtonBase = $86			;>The part of the switch the button cap sits on (mostly covered by layer 1 unless 0LHUSBDP's B bit is set.)
+ !Tile_ButtonBaseFrame = $86		;>Tile that is the base frame of the switch, the orange part the button cap sinks into
+ !Tile_ButtonMasker = $87		;>The part of the switch the button cap sits on (mostly covered by layer 1 unless 0LHUSBDP's B bit is set.)
  
  !GFXPage = 1				;>0 = Page 0, 1 = page 1 (don't use any other values).
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
@@ -70,7 +69,7 @@
  !ButtonDownSpeed = $0080		;>How fast the button cap moves down when pressed, in 1/256th of a pixel per frame ($0080 is 128/256, or 0.5 pixel per frame)
  !ButtonUpSpeed = $0080			;>Same as above but when rising back up.
  
- !SwitchBasePalette = 3			;>Palette of switch base, use values 0-7, don't use any other values.
+ !SwitchBaseFramePalette = 3			;>Palette of switch base, use values 0-7, don't use any other values.
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
  !SFX_SoundNumb = $0B		;>Sound effect number
  !SFX_Port = $1DF9|!addr	;>Use only $1DF9, $1DFA, or $1DFB.
@@ -1088,122 +1087,139 @@ HandleGFX:
 	;a "not-pressed" and "pressed" graphic rather a moving OAM tile in relation
 	;to the origin of the sprite
 	%GetDrawInfo()			;
-	;($03xx+(SlotOffset*4))
-	;SlotOffset = 0: Base of button left half
-	;SlotOffset = 1: Base of button right half
-	;SlotOffset = 2: Button cap left half
-	;SlotOffset = 3: Button cap right half
-	;Switch base
-		LDA $00				;\X position
-		STA.w ($0300+(0*4))|!Base2,y	;|>Left half
-		CLC				;|
-		ADC #$08			;|
-		STA.w ($0300+(1*4))|!Base2,y	;/>Right half
-		LDA $01				;\Y position
-		CLC				;|
-		ADC.b #$08-2			;|
-		STA.w ($0301+(0*4))|!Base2,y	;|>Left half
-		STA.w ($0301+(1*4))|!Base2,y	;/>Right half
-		LDA #!Tile_ButtonBase		;\Tile
-		STA.w ($0302+(0*4))|!Base2,y	;|>Left half
-		STA.w ($0302+(1*4))|!Base2,y	;/>Right half
-		LDA.b #((!SwitchBasePalette<<1)|!GFXPage)
-		STA.w ($0303+(0*4))|!Base2,y	;\Properties ;>Left half
-		ORA.b #%01000000		;|X-flip it
-		STA.w ($0303+(1*4))|!Base2,y	;/>Right half
-		LDA !extra_byte_1,x
-		BIT.b #%00000100
-		BEQ .NotInFront
-		LDA.w ($0303+(0*4))|!Base2,y	;\Force base of switch in front of layer 1 (anti-masking to avoid cap being cut off when cap is in front of decoration tiles)
-		AND.b #%11001111		;|
-		ORA.b #!SwitchBasePriority	;|
-		STA.w ($0303+(0*4))|!Base2,y	;|
-		LDA.w ($0303+(1*4))|!Base2,y	;|
-		AND.b #%11001111		;|
-		ORA.b #!SwitchBasePriority	;|
-		STA.w ($0303+(1*4))|!Base2,y	;/
-		.NotInFront
+	;($03XX+(SlotOffset*4))
+	;XX = 00: X position
+	;XX = 01: Y position
+	;XX = 02: Tile number
+	;XX = 03: Tile properties
+	;SlotOffset = 0: Base frame, left half
+	;SlotOffset = 1: Base frame, right half
+	;SlotOffset = 2: Masker, left half
+	;SlotOffset = 3: Masker, right half
+	;SlotOffset = 4: Button cap, left half
+	;SlotOffset = 5: Button cap, right half
+	;Must draw in this order from low OAM to high OAM: Button base frame, Masker, button cap
+	;Switch base frame and cap
+		.SwitchBaseXPosition
+			LDA $00				;X position
+			STA.w ($0300+(0*4))|!Base2,y	;>Base frame left half
+			STA.w ($0300+(2*4))|!Base2,y	;>Masker left half
+			CLC				;
+			ADC #$08			;
+			STA.w ($0300+(1*4))|!Base2,y	;>Base frame right half
+			STA.w ($0300+(3*4))|!Base2,y	;>Masker right half
+		.SwitchBaseYPosition
+			LDA $01				;Y position
+			CLC				;
+			ADC.b #$08-2			;
+			STA.w ($0301+(0*4))|!Base2,y	;>Base frame left half
+			STA.w ($0301+(1*4))|!Base2,y	;>Base frame right half
+			STA.w ($0301+(2*4))|!Base2,y	;>Masker left half
+			STA.w ($0301+(3*4))|!Base2,y	;>Masker right half
+		.SwitchBaseTile
+			LDA #!Tile_ButtonBaseFrame
+			STA.w ($0302+(0*4))|!Base2,y
+			STA.w ($0302+(1*4))|!Base2,y
+			LDA #!Tile_ButtonMasker		;\Tile
+			STA.w ($0302+(2*4))|!Base2,y	;|>Left half
+			STA.w ($0302+(3*4))|!Base2,y	;/>Right half
+			
+		.SwitchBaseProperties ;YXPPCCCT
+			LDA.b #((2<<4)|(!SwitchBaseFramePalette<<1)|!GFXPage)	;>GFX page, palette, Priority = 2
+			STA.w ($0303+(0*4))|!Base2,y			;>Base frame left half
+			ORA.b #%01000000				;>Xflip
+			STA.w ($0303+(1*4))|!Base2,y			;>Base frame right half
+			
+			LDA.b #((0<<4)|(3<<1)|!GFXPage)			;>GFX page, palette 3 (don't worry, it should be behind layer 1 tiles, thus P bits must be 0)
+			STA.w ($0303+(2*4))|!Base2,y			;>Masker left half
+			ORA.b #%01000000				;>Xflip
+			STA.w ($0303+(3*4))|!Base2,y			;>Masker right half
+			.NotInFront
 	;Button cap
 		LDA $00				;\X position (left half)
-		STA.w ($0300+(2*4))|!Base2,y	;|
+		STA.w ($0300+(4*4))|!Base2,y	;|
 		CLC				;|
 		ADC #$08			;|
-		STA.w ($0300+(3*4))|!Base2,y	;/>X position (right half)
+		STA.w ($0300+(5*4))|!Base2,y	;/>X position (right half)
 		;Y position, depending on pressed state
 			LDA $01					;\Y position
 			CLC					;|
 			ADC !ButtonCapOffset,x			;|
-			STA.w ($0301+(2*4))|!Base2,y		;|>Left half
-			STA.w ($0301+(3*4))|!Base2,y		;/>Right half
+			STA.w ($0301+(4*4))|!Base2,y		;|>Left half
+			STA.w ($0301+(5*4))|!Base2,y		;/>Right half
 		LDA #!Tile_ButtonCap			;\Tile
-		STA.w ($0302+(2*4))|!Base2,y		;|>Left half
-		STA.w ($0302+(3*4))|!Base2,y		;/>Right half
+		STA.w ($0302+(4*4))|!Base2,y		;|>Left half
+		STA.w ($0302+(5*4))|!Base2,y		;/>Right half
 		LDA !extra_byte_2,x		;>Palette as extra byte 2
 		AND.b #%00001110		;>Ignore XY flips, page (forcibly set to 0 or 1), and priority
 		ORA.b #(%00100000|!GFXPage)	;>Force only some bits of the PP to be set (should not appear behind layers without priority.)
-		STA.w ($0303+(2*4))|!Base2,y	;\Properties ;>Left half
+		STA.w ($0303+(4*4))|!Base2,y	;\Properties ;>Left half
 		ORA.b #%01000000		;|X-flip it
-		STA.w ($0303+(3*4))|!Base2,y	;/>Right half
+		STA.w ($0303+(5*4))|!Base2,y	;/>Right half
 FinishOAM:
 	LDY #$00			;tile size = 8x8
-	LDA #$03			;tiles to display minus 1 = 3 (4 tiles, minus 1 = 3)
+	LDA #$05			;tiles to display minus 1 = 3 (6 tiles, minus 1 = 5)
 	JSL $01B7B3|!BankB		;
 	RTS				;
 HandleGFXUpsideDown:
 	%GetDrawInfo()			;
-	;Switch base
-		LDA $00				;\X position
-		STA.w ($0300+(0*4))|!Base2,y	;|>Left half
-		CLC				;|
-		ADC #$08			;|
-		STA.w ($0300+(1*4))|!Base2,y	;/>Right half
-		LDA $01				;\Y position
-		CLC				;|
-		ADC.b #$00+2			;|
-		STA.w ($0301+(0*4))|!Base2,y	;|>Left half
-		STA.w ($0301+(1*4))|!Base2,y	;/>Right half
-		LDA #!Tile_ButtonBase		;\Tile
-		STA.w ($0302+(0*4))|!Base2,y	;|>Left half
-		STA.w ($0302+(1*4))|!Base2,y	;/>Right half
-		LDA.b #($80|(!SwitchBasePalette<<1)|!GFXPage)
-		STA.w ($0303+(0*4))|!Base2,y	;\Properties ;>Left half
-		ORA.b #%01000000		;|X-flip it
-		STA.w ($0303+(1*4))|!Base2,y	;/>Right half
-		LDA !extra_byte_1,x
-		BIT.b #%00000100
-		BEQ .NotInFront
-		LDA.w ($0303+(0*4))|!Base2,y	;\Force base of switch in front of layer 1 (anti-masking to avoid cap being cut off when cap is in front of decoration tiles)
-		AND.b #%11001111		;|
-		ORA.b #!SwitchBasePriority	;|
-		STA.w ($0303+(0*4))|!Base2,y	;|
-		LDA.w ($0303+(1*4))|!Base2,y	;|
-		AND.b #%11001111		;|
-		ORA.b #!SwitchBasePriority	;|
-		STA.w ($0303+(1*4))|!Base2,y	;/
+	.SwitchBaseXPosition
+		LDA $00				;X position
+		STA.w ($0300+(0*4))|!Base2,y	;>Base frame left half
+		STA.w ($0300+(2*4))|!Base2,y	;>Masker left half
+		CLC				;
+		ADC #$08			;
+		STA.w ($0300+(1*4))|!Base2,y	;>Base frame right half
+		STA.w ($0300+(3*4))|!Base2,y	;>Masker right half
+	.SwitchBaseYPosition
+		LDA $01				;Y position
+		CLC				;
+		ADC.b #$00+2			;
+		STA.w ($0301+(0*4))|!Base2,y	;>Base frame left half
+		STA.w ($0301+(1*4))|!Base2,y	;>Base frame right half
+		STA.w ($0301+(2*4))|!Base2,y	;>Masker left half
+		STA.w ($0301+(3*4))|!Base2,y	;>Masker right half
+	.SwitchBaseTile
+		LDA #!Tile_ButtonBaseFrame
+		STA.w ($0302+(0*4))|!Base2,y
+		STA.w ($0302+(1*4))|!Base2,y
+		LDA #!Tile_ButtonMasker		;\Tile
+		STA.w ($0302+(2*4))|!Base2,y	;|>Left half
+		STA.w ($0302+(3*4))|!Base2,y	;/>Right half
+	.SwitchBaseProperties ;YXPPCCCT
+		LDA.b #((1<<7)|(2<<4)|(!SwitchBaseFramePalette<<1)|!GFXPage)	;>GFX page, palette, Priority = 2, Y flip
+		STA.w ($0303+(0*4))|!Base2,y			;>Base frame left half
+		ORA.b #%01000000				;>Xflip
+		STA.w ($0303+(1*4))|!Base2,y			;>Base frame right half
+		
+		LDA.b #((1<<7)|(0<<4)|(3<<1)|!GFXPage)		;>GFX page, palette 3 (don't worry, it should be behind layer 1 tiles, thus P bits must be 0), Y flip
+		STA.w ($0303+(2*4))|!Base2,y			;>Masker left half
+		ORA.b #%01000000				;>Xflip
+		STA.w ($0303+(3*4))|!Base2,y			;>Masker right half
 		.NotInFront
 	;Button cap
 		LDA $00				;\X position (left half)
-		STA.w ($0300+(2*4))|!Base2,y	;|
+		STA.w ($0300+(4*4))|!Base2,y	;|
 		CLC				;|
 		ADC #$08			;|
-		STA.w ($0300+(3*4))|!Base2,y	;/>X position (right half)
+		STA.w ($0300+(5*4))|!Base2,y	;/>X position (right half)
 		;Y position, depending on pressed state
 			LDA $01					;\Y position
 			SEC					;|
 			SBC !ButtonCapOffset,x			;|
 			CLC					;|
 			ADC #$08				;|
-			STA.w ($0301+(2*4))|!Base2,y		;|>Left half
-			STA.w ($0301+(3*4))|!Base2,y		;/>Right half
+			STA.w ($0301+(4*4))|!Base2,y		;|>Left half
+			STA.w ($0301+(5*4))|!Base2,y		;/>Right half
 		LDA #!Tile_ButtonCap			;\Tile
-		STA.w ($0302+(2*4))|!Base2,y		;|>Left half
-		STA.w ($0302+(3*4))|!Base2,y		;/>Right half
+		STA.w ($0302+(4*4))|!Base2,y		;|>Left half
+		STA.w ($0302+(5*4))|!Base2,y		;/>Right half
 		LDA !extra_byte_2,x		;>Palette as extra byte 2
 		AND.b #%00001110		;>Ignore X flips, page (forcibly set to 0 or 1), and priority
 		ORA.b #(%10100000|!GFXPage)	;>Force only some bits of the PP to be set (should not appear behind layers without priority.)
-		STA.w ($0303+(2*4))|!Base2,y	;\Properties ;>Left half
+		STA.w ($0303+(4*4))|!Base2,y	;\Properties ;>Left half
 		ORA.b #%01000000		;|X-flip it
-		STA.w ($0303+(3*4))|!Base2,y	;/>Right half
+		STA.w ($0303+(5*4))|!Base2,y	;/>Right half
 	JMP FinishOAM
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Trigger switch (JSR)
