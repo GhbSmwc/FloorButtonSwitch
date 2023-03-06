@@ -10,7 +10,8 @@
 ;     based on extra_byte_4)
 ;-D = Require pressing down on D-pad: 0 = no, 1 = yes (only applies to
 ;     right-side-up switch). Good for if you have a bunch of switches on the floor and close to
-;     each other and do not want the player to accidentally trigger them.
+;     each other and do not want the player to accidentally trigger them (make sure you inform
+;     the player though).
 ;-B = Base of switch in front of layer 1 flag: 0 = behind, 1 = in front (but
 ;     behind tiles with priority). Have this set to 1 if you plan on having the
 ;     switch in front of decoration tiles to avoid the switch cap from being
