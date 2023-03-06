@@ -52,13 +52,14 @@
   ; "floor" is a function that rounds a number down to an integer (7/8 = 0.875 -> 0)
   ; And what flag within a byte is simply [FlagNumber % 8] where the "%" represents a modulo operator
 ;Settings
- !Tile_ButtonCap = $02			;>tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
- !Tile_Pedestal = $03
+ !Tile_ButtonCap = $85			;>tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
+ !Tile_ButtonBase = $86			;>The part of the switch the button cap sits on (mostly covered by layer 1 unless 0LHUSBDP's B bit is set.)
  
  !GFXPage = 1				;>0 = Page 0, 1 = page 1 (don't use any other values).
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
  
  ;Pro tip: Asar allows entering hexadecimal signed numbers without using two's complement ("$FF" can be entered as "-$01"), you don't need to convert.
+ ;NOTE: These below are "inverted" when upsidedown mode is used, as in, the !Button_PressedOffset refers to how far the button cap goes into the base.
   !Button_NotPressedOffset = $01	;>Y position (relative to sprite's origin) of button cap when not pressed (can be negative ($80-$FF) for higher positions).
   !Button_PressedOffset = $04		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressing (can be negative ($80-$FF) for higher positions).
  
@@ -1101,7 +1102,7 @@ HandleGFX:
 		ADC.b #$08-2			;|
 		STA.w ($0301+(0*4))|!Base2,y	;|>Left half
 		STA.w ($0301+(1*4))|!Base2,y	;/>Right half
-		LDA #!Tile_Pedestal		;\Tile
+		LDA #!Tile_ButtonBase		;\Tile
 		STA.w ($0302+(0*4))|!Base2,y	;|>Left half
 		STA.w ($0302+(1*4))|!Base2,y	;/>Right half
 		LDA.b #((!SwitchBasePalette<<1)|!GFXPage)
@@ -1159,7 +1160,7 @@ HandleGFXUpsideDown:
 		ADC.b #$00+2			;|
 		STA.w ($0301+(0*4))|!Base2,y	;|>Left half
 		STA.w ($0301+(1*4))|!Base2,y	;/>Right half
-		LDA #!Tile_Pedestal		;\Tile
+		LDA #!Tile_ButtonBase		;\Tile
 		STA.w ($0302+(0*4))|!Base2,y	;|>Left half
 		STA.w ($0302+(1*4))|!Base2,y	;/>Right half
 		LDA.b #($80|(!SwitchBasePalette<<1)|!GFXPage)
@@ -1266,12 +1267,11 @@ SpriteTouchSwitchCheck:
 		..CheckCollision
 			CPX $15E9|!addr		;\If itself, then skip
 			BEQ ..Next		;/
-			LDA !14C8,x		;\If other sprite is kicked/carryable, proceed
+			LDA !14C8,x		;\If other sprite is kicked/carryable/carried, proceed
 			CMP #$09		;|
-			BEQ ...Carryable	;|
-			CMP #$0A		;|
-			BEQ ...Kicked		;/
-			BRA ..Next
+			BCC ..Next		;|
+			CMP #$0C		;|
+			BCS ..Next		;/
 			...Carryable
 			...Kicked
 				;Hitbox B
