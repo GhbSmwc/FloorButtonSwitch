@@ -55,20 +55,23 @@
  !Tile_ButtonCap = $85			;>tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
  !Tile_ButtonBaseFrame = $86		;>Tile that is the base frame of the switch, the orange part the button cap sinks into
  !Tile_ButtonMasker = $87		;>The part of the switch the button cap sits on (mostly covered by layer 1 unless 0LHUSBDP's B bit is set.)
- 
+
  !GFXPage = 1				;>0 = Page 0, 1 = page 1 (don't use any other values).
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
- 
- ;Pro tip: Asar allows entering hexadecimal signed numbers without using two's complement ("$FF" can be entered as "-$01"), you don't need to convert.
- ;NOTE: These below are "inverted" when upsidedown mode is used, as in, the !Button_PressedOffset refers to how far the button cap goes into the base.
-  !Button_NotPressedOffset = $01	;>Y position (relative to sprite's origin) of button cap when not pressed (can be negative ($80-$FF) for higher positions).
-  !Button_PressedOffset = $04		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressing (can be negative ($80-$FF) for higher positions).
- 
+
+ ;Switch cap Y position limits (signed, negative numbers allowed). Please use saner values (don't use values that are too far away from $00).
+ ;Pro tip: Asar allows entering hexadecimal signed numbers without using two's complement ("$FF" can be entered as "-$01", which represents "-1" in decimal), you don't
+ ;need to convert.
+ ;
+ ;NOTE: These below are "inverted" when upside-down mode is used, as in, the !Button_PressedOffset refers to how far the button cap goes into the base.
+  !Button_NotPressedOffset = $01	;>Y position (relative to sprite's origin) of button cap when not pressed.
+  !Button_PressedOffset = $04		;>Y position (relative to sprite's origin) of button cap that is the lowest when pressed.
+
  !Held_Down_Function = 0		;>0 = No, 1 = include code that runs every frame while the switch is pressed (see "SwitchActionHeldDown")
- 
+
  !ButtonDownSpeed = $0080		;>How fast the button cap moves down when pressed, in 1/256th of a pixel per frame ($0080 is 128/256, or 0.5 pixel per frame)
  !ButtonUpSpeed = $0080			;>Same as above but when rising back up.
- 
+
  !SwitchBaseFramePalette = 3			;>Palette of switch base, use values 0-7, don't use any other values.
 ;Sound effects, see https://www.smwcentral.net/?p=viewthread&t=6665
  !SFX_SoundNumb = $0B		;>Sound effect number
@@ -83,7 +86,7 @@
 
 ;Sprite defines
  ;Best not to modify these
-  ;Sprite tables
+  ;Sprite tables RAMs.
    !ButtonState = !1534			;>This RAM holds these values: $00 = not pressed, $01 = temporally pressed (also held down), $02 = permanently pressed
    !ButtonPressedTimer = !1540		;>Timer for when the switch is temporally pressed before popping back out (measured when the button cap starts moving downwards, not when it reaches the bottom)
    !ButtonCapOffset = !1504		;>How far down the switch moved, in pixels. NOTE: If switch is upside down, the values are also inverted, increasing would have the cap of the button moves upwards towards the base of the switch.
@@ -202,9 +205,9 @@ macro SwitchAction()
 		;On SA-1, because the code is much longer, code is more prone to branch bound issues.
 		LDA !extra_byte_3,x
 		BEQ .OnOffFlip			;>$00: on/off toggle
-		CMP #$03		
+		CMP #$03
 		BCC .PSwitchToggle		;>$01: blue p-switch, $02: silver
-		CMP #$13		
+		CMP #$13
 		BCC .CustomTriggersToggle	;>$03-$12: custom triggers
 		;BEQ .SetOnOffOn			;>$13: Set on/off to on
 		BNE +
@@ -240,21 +243,21 @@ macro SwitchAction()
 		JMP .MVDKSwitch			;>$45-$47
 		+
 		RTS				;>Anything else, return (failsafe)
-		
+
 		.OnOffFlip
 			LDA $14AF|!addr
 			EOR #$01
 			STA $14AF|!addr
 			RTS ;>Keep this RTS here else game will crash.
-			
+
 		.PSwitchToggle
 			DEC			;\Map $01-$02 to $00-$01, for offsetting from $14AD
 			TAY			;/
 			LDA $14AD|!addr,y	;>Y: $00 = blue, $01 = silver
 			CMP #$02		;>A p-switch timer value of 1 is considered "off" and we do not want an overlap (we deactivate the switch by setting it to $01 to prevent music glitches)
 			BCC ..Activate
-			
-			
+
+
 			..Deactivate
 				LDA #$01		;\STZ $xxxx,y does not exist. Also, setting this to $00 doesn't reset the music
 				STA $14AD|!addr,y	;/since the music resetting mechanism is handled by the timer itself, thus setting it to $01 is a preferable option.
@@ -276,7 +279,7 @@ macro SwitchAction()
 				%invoke_snes(..WramAccess)
 				RTS
 			endif
-			
+
 			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
 			..WramAccess
 				;Thing I learned about "%invoke_snes(label)":
@@ -297,7 +300,7 @@ macro SwitchAction()
 				CMP #$29
 				BCC ...Toggle		;>Y = $01, $19-$28
 				INY			;>Y = $02, $29-$38
-				
+
 				...Toggle
 				LDA !extra_byte_3,x
 				SEC
@@ -312,7 +315,7 @@ macro SwitchAction()
 				EOR ReadBitPosition,y			;|
 				STA $7FC0FC,x				;/
 				LDX $15E9|!addr				;>Restore sprite slot
-				
+
 				if !sa1 == 0
 					RTS
 				else
@@ -367,7 +370,7 @@ macro SwitchAction()
 				%invoke_snes(..WramAccess)
 				RTS
 			endif
-			
+
 			..WramAccess
 				if !sa1 != 0
 					PHB
@@ -393,7 +396,7 @@ macro EveryFrameCode()
 		; -$00 = no
 		; -$01 = yes (switch will appear instantly pressed or not). $14C8 cannot be used to check if the sprite is running on init or main.
 		; This is so that switches appear pressed when they spawn.
-		
+
 		.PressedPermanentlyBit
 			;This code is placed here rather than on init so if you have 2 switches on-screen on the same permanent flag, both will be pressed, rather than
 			;only one pressed with the other being pressed when despawning and then respawning.
@@ -411,7 +414,7 @@ macro EveryFrameCode()
 			LDX $15E9|!addr				;>Restore current sprite slot
 			CMP #$00				;>Compare with A, not X
 			BNE .Pressed				;>...Clear, then spawn as "not pressed"
-			
+
 			..NotPermanent
 		;[List of switch action]
 		;On SA-1, because the code is much longer, code is more prone to branch bound issues.
@@ -448,7 +451,7 @@ macro EveryFrameCode()
 		+
 		.No
 		RTS
-		
+
 		.BePressedWhenOnOffIsOn
 			LDA $14AF|!addr
 			BNE .NonPressed			;\if On/off switch is ON, be non-pressed
@@ -485,7 +488,7 @@ macro EveryFrameCode()
 				%invoke_snes(..WramAccess)
 				RTS
 			endif
-			
+
 			;SEC : SBC #$03 causes mapping the range of $03-$12 to be mapped to $00-$0F, the valid bit numbering range for 16-bit numbers and custom trigger flags.
 			..WramAccess
 				;Thing I learned about "%invoke_snes(label)":
@@ -510,7 +513,7 @@ macro EveryFrameCode()
 				LDA !extra_byte_3,x
 				CMP #$29
 				BCC ...PressedIfActivated
-				
+
 				...PressedIfDeactivated
 					JSR ReadCustomTriggerBit
 					BEQ ...Pressed
@@ -530,7 +533,7 @@ macro EveryFrameCode()
 					PLB
 					RTL
 				endif
-				
+
 				...MapFlagNumberingToZero
 				db $19	;>$19-$28 becomes $00-$0F
 				db $29	;>$29-$38 becomes $00-$0F
@@ -558,7 +561,7 @@ macro EveryFrameCode()
 				%invoke_snes(..WramAccess)
 				RTS
 			endif
-			
+
 			..WramAccess
 				if !sa1 != 0
 					PHB
@@ -615,7 +618,7 @@ Print "INIT ",pc
 			LDA !14D4,x				;|
 			ADC SwitchSpriteYSpawnOffsetHigh,y	;|
 			STA !14D4,x				;/
-	
+
 		.HandleLayer2SpawnPosition	;>Same as above but on moving layer 2
 			LDA !extra_byte_1,x
 			BIT.b #%01000000
@@ -634,7 +637,7 @@ Print "INIT ",pc
 			LDA !14D4,x
 			SBC $01
 			STA !14D4,x
-			
+
 			;SpriteXPosL2 = SpriteXPos - (Layer2XPos - Layer1XPos)
 			REP #$20
 			LDA $1466|!addr
@@ -652,14 +655,14 @@ Print "INIT ",pc
 			..NotLayer2
 		PLB
 		RTL
-	
+
 	SwitchSpriteYSpawnOffset:
 	db $08-1		;Sprites appear 1 pixel lower than their original Y position.
 	db $F8
 	SwitchSpriteYSpawnOffsetHigh:
 	db $00
 	db $FF
-	
+
 	ReadBitPosition:
 	db %00000001
 	db %00000010
@@ -685,25 +688,25 @@ Button:
 	BNE +
 	JSR HandleGFX			;Handle graphics
 	BRA ++
-	
+
 	+
 	JSR HandleGFXUpsideDown
-	
+
 	++
 	LDA $9D				;freeze flag
 	;BNE .Done			;
 	BEQ +
 	RTS
 	+
-	
+
 	.RunMain
 		STZ $00
 		JSR EveryFrameCode
 		..ButtonCapPopOut
-			LDA !ButtonState,x		;\If switch isn't temporally pressed down, skip
+			LDA !ButtonState,x		;\If switch isn't pressed down at all, skip
 			BEQ ...NoPop			;/
-			CMP #$02
-			BEQ ...NoPop
+			CMP #$02			;\If permanently pressed, skip
+			BEQ ...NoPop			;/
 			LDA !extra_byte_1,x		;\If set to allow pressing without the Dpad, skip (this would allow player to use the switch without having to get off of it)
 			AND.b #%00000010		;/
 			BNE ...SkipPlayerHoldingItDown	;>If switch requires D-pad pressing down, allow switch to pop back out even if player is touching it
@@ -711,23 +714,23 @@ Button:
 			JSL $03B69F|!BankB		;>Get sprite hitbox info (clipping A)
 			JSL $03B72B|!BankB		;>Check contact
 			BCS ...NoPop			;>If player is inside the switch, don't allow it to pop (when set to activate without pressing down on D-pad)
-		
+
 			...SkipPlayerHoldingItDown
-			LDA !extra_byte_1,x
-			AND.b #%00001000
-			BEQ ...IgnoreOtherSprites
-			JSR SpriteTouchSwitchCheck
-			BCS ...NoPop
+			LDA !extra_byte_1,x		
+			AND.b #%00001000		
+			BEQ ...IgnoreOtherSprites	
+			JSR SpriteTouchSwitchCheck	;\Check if other sprites holding the switch down
+			BCS ...NoPop			;/
 			...IgnoreOtherSprites
-			LDA !ButtonPressedTimer,x	;\If timer runs out, revert switch
-			BNE ...NoPop			;|
+			LDA !ButtonPressedTimer,x	;\If timer runs out and nothing touching the switch, revert switch
+			BNE ...NoPop			;|(Note: timer continues to count down to 0, upon this situation, wait for the switch to not be touched by player or sprite)
 			STZ !ButtonState,x		;/
 			...NoPop
 		..MarioRelativePosToSpr
 			LDA !extra_byte_1,x
 			BIT.b #%00010000
 			BNE ...UpsideDownPosition
-			
+
 			...RightSideUp
 				LDY #$00			;\Y = $00 if displacement is positive, $FF if negative (allows 8-bit signed value to represent signed 16-bit)
 				LDA !ButtonCapOffset,x		;|
@@ -758,7 +761,7 @@ Button:
 			LDA !extra_byte_1,x
 			BIT.b #%01000000
 			BEQ ..CapMovement
-			
+
 			...YMove
 				LDY #$00
 				LDA $17BE|!addr
@@ -790,7 +793,7 @@ Button:
 		..CapMovement
 			LDA !ButtonState,x
 			BNE ...MoveDown
-			
+
 			...MoveUp
 				LDA !ButtonCapOffsetFixedPoint,x
 				SEC
@@ -819,14 +822,14 @@ Button:
 				+
 				STA !ButtonCapOffset,x			;>Otherwise set its position at the limit
 				BRA ...MoveDone
-				
+
 			...MoveDone
 		..CollisionWithMario
 			LDA !D8,x		;Temporary move the sprite so that the solid hitbox ($01B44F) account for the moved button cap
 			PHA
 			LDA !14D4,x
 			PHA
-			
+
 			LDA !extra_byte_1,x
 			BIT.b #%00010000
 			BEQ ...HitboxWithPlayer
@@ -844,7 +847,7 @@ Button:
 				LDA !14D4,x			;|
 				ADC ButtonCapHighByteDisp,y	;|
 				STA !14D4,x			;/
-				
+
 				LDA $96			;\$02-$03: Mario's Y position relative to the button cap, after frame of movement (this must be performed after ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
 				SEC			;|(MarioYRelativeCurrent = MarioYCurrent - SwitchCapSpriteYCurrent)
 				SBC !D8,x		;|
@@ -875,7 +878,7 @@ Button:
 				; frame) once per frame of the two things but not in between ("mid-movement" does not
 				; exist) within a frame. This speed-phasing bug pretty much exists in all games with
 				; physics btw.
-				
+
 				;Sprite clipping (the button cap), box A
 				JSL $03B69F|!BankB			;>Get sprite clipping A (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDA #$08				;\Modify its height
@@ -923,9 +926,9 @@ Button:
 				....MoveHorizontallyWithL2
 					LDA !extra_byte_1,x
 					AND.b #%01100000		;>BIT does not work properly (does not modify value in Accumulator), so AND is used instead
-					CMP.b #%01100000		
+					CMP.b #%01100000
 					BNE .....Done			;>If not both solid and move with layer 2, skip
-					
+
 					LDY #$00
 					LDA $17BF|!addr
 					BPL .....Positive
@@ -939,7 +942,7 @@ Button:
 					LDA $95
 					SBC PositiveNegativeHighByte,y
 					STA $95
-					
+
 					.....Done
 				LDA !extra_byte_1,x
 				BIT.b #%00000010
@@ -958,7 +961,7 @@ Button:
 				BEQ +
 				JMP ...NotPressingSwitch
 				+
-				
+
 				LDA $96			;\$02-$03: Mario's Y position relative to the button cap, after frame of movement (this must be performed after ALL forms of movement (including calling $01ABCC/$01801A/$018022/$01802A) to account his final position)
 				SEC			;|(MarioYRelativeCurrent = MarioYCurrent - SwitchCapSpriteYCurrent)
 				SBC !D8,x		;|
@@ -970,16 +973,16 @@ Button:
 				LDA $02						;\Mario's Y position delta relative to the sprite position delta (if negative, player is moving upwards against sprite, 0, player and sprite moving at same pixels per frame, positive, player moves downwards against sprite)
 				SEC						;|Effectively, this is the "speed" (in pixels per frame) of Mario moving against the sprite.
 				SBC $00						;/
-				STA $0E
-				SEP #$20					;\This is a "platform pass fix": https://www.smwcentral.net/?p=section&a=details&id=13557 - this time, instead of using [MarioXYSpeedRelativeToSprite = MarioXYSpeed - SpriteXYspeed], we do
-				BEQ +						;>Bugfix if cape mario sticks to the ceiling, his Y speed is set to $00 and not trigger switches.
-				BPL ...NotPressingSwitch			;/[MarioXYRelativeToSprite = MarioXYPos - SpriteXYPos] twice, before and after moving the cap up and down. But this is upside down.
+				;STA $0E
+				SEP #$20					;\This is a "platform pass fix" again, but downwards.
+				BEQ +						;|
+				BPL ...NotPressingSwitch			;/>If moving downwards against switch, ignore switch.
 				+
 				;I'm avoiding using JSL $01B44F (solid sprite subroutine) because the hitbox of that may have a flaw the player could clip into a layer 1 block and trigger the "mario stands on top" and be able to 1-frame jump off, akin to the walljump glitch
 				JSL $03B69F|!BankB			;>Get sprite clipping A (had to be called again due to some bugs found, probably $03B72B overwrites certain scratch RAM)
 				LDA $05					;\Modify Y position of sprite
 				CLC					;|
-				ADC #$08				;|
+				ADC #$0C				;|
 				STA $05					;|
 				LDA $0B					;|
 				ADC #$00				;|
@@ -994,39 +997,41 @@ Button:
 				;My own "solid" code
 				;After $03B664 finishes, we have $01 and $09 containing the position of the hitbox of mario, located at the top edge of that box
 				;This is offset from a value from the player's Y position, $96-$97. To compute so that the player's Y position is touching the bottom of the switch
-				;is PlayerYPosSetTo = (SpriteY + $0010) - (MarioHitboxY - MarioY)
-				;Which can be rearranged into:  SpriteY + $0010 - MarioHitboxY + MarioY
-				
+				;is PlayerYPosSetTo = SpriteHitboxY + SpriteHitboxHeight - (MarioHitboxY - MarioY)
+				;Which is simplified to: PlayerYPosSetTo = SpriteHitboxY + SpriteHitboxHeight - MarioHitboxY + MarioY)
+				; SpriteHitboxY is RAM $05 (low byte) and $0B (high byte)
+				; SpriteHitboxHeight is RAM $07
+				; MarioHitboxY is RAM $01 (low byte) and RAM $09 (high byte)
+				; MarioY is RAM $96-$97 (low and high byte together)
 				LDA !extra_byte_1,x
-				BIT.b #%00100000
+				BIT.b #%00100000			;>Solid switch sprite bit
 				BEQ +
-				LDA !D8,x				;\(SpriteY + $0010), stored in $0A-$0B (must be stored to properly handle high byte)
-				CLC					;|
-				ADC #$10				;|
-				STA $0A					;|
-				LDA !14D4,x				;|
-				ADC #$00				;|
-				STA $0B					;/
-				LDA $0A					;\... - MarioHitboxY 
-				SEC					;|
-				SBC $01					;|
-				STA $0A					;|
-				LDA $0B					;|
-				SBC $09					;|
-				STA $0B					;/
-				LDA $0A					;\... + MarioY
-				CLC					;|
-				ADC $96					;|
-				STA $96					;|
-				LDA $0B					;|
-				ADC $97					;|
-				STA $97					;/
+				LDA $05			;\SpriteHitboxY + SpriteHitboxHeight, stored into $02-$03 briefly so it can handle the high byte properly
+				CLC			;|
+				ADC $07			;|
+				STA $02			;|
+				LDA $0B			;|
+				ADC #$00		;|
+				STA $03			;/
+				LDA $02			;\...- MarioHitboxY, again, stored in $02-$03 briefly
+				SEC			;|
+				SBC $01			;|
+				STA $02			;|
+				LDA $03			;|
+				SBC $09			;|
+				STA $03			;/
+				REP #$20		;\...+ MarioY, and store
+				LDA $02			;|
+				CLC			;|
+				ADC $96			;|
+				STA $96			;|
+				SEP #$20		;/
 				STZ $7D					;>Zero out the Y speed
 				+
 				JSR TriggerSwitch
 			...NotPressingSwitch
 			...PlayerCollisionDone
-		
+
 		..CollisionWithOtherSprite
 			LDA !extra_byte_1,x
 			AND.b #%00001000
@@ -1036,21 +1041,21 @@ Button:
 			JSR SpriteTouchSwitchCheck
 			BCC ...NotTouchingSwitch
 			JSR TriggerSwitch
-			
+
 			...NotTouchingSwitch
 			...SpriteAlreadyPressed
-		
-		PLA			;\Restore sprite position
-		STA !14D4,x		;|
-		PLA			;|
-		STA !D8,x		;/
-		if !Held_Down_Function != 0
-			LDA !ButtonState,x
-			CMP #$01
-			BNE .Done
-			;Switch function when button is held down:
-				JSR SwitchActionHeldDown
-		endif
+		..CollisionDone
+			PLA			;\Restore sprite position
+			STA !14D4,x		;|
+			PLA			;|
+			STA !D8,x		;/
+			if !Held_Down_Function != 0
+				LDA !ButtonState,x
+				CMP #$01
+				BNE .Done
+				;Switch function when button is held down:
+					JSR SwitchActionHeldDown
+			endif
 	.Done
 		RTS
 	%SwitchAction()
@@ -1123,13 +1128,13 @@ HandleGFX:
 			LDA #!Tile_ButtonMasker		;\Tile
 			STA.w ($0302+(2*4))|!Base2,y	;|>Left half
 			STA.w ($0302+(3*4))|!Base2,y	;/>Right half
-			
+
 		.SwitchBaseProperties ;YXPPCCCT
 			LDA.b #((2<<4)|(!SwitchBaseFramePalette<<1)|!GFXPage)	;>GFX page, palette, Priority = 2
 			STA.w ($0303+(0*4))|!Base2,y			;>Base frame left half
 			ORA.b #%01000000				;>Xflip
 			STA.w ($0303+(1*4))|!Base2,y			;>Base frame right half
-			
+
 			LDA.b #((0<<4)|(3<<1)|!GFXPage)			;>GFX page, palette 3 (don't worry, it should be behind layer 1 tiles, thus P bits must be 0)
 			STA.w ($0303+(2*4))|!Base2,y			;>Masker left half
 			ORA.b #%01000000				;>Xflip
@@ -1191,7 +1196,7 @@ HandleGFXUpsideDown:
 		STA.w ($0303+(0*4))|!Base2,y			;>Base frame left half
 		ORA.b #%01000000				;>Xflip
 		STA.w ($0303+(1*4))|!Base2,y			;>Base frame right half
-		
+
 		LDA.b #((1<<7)|(0<<4)|(3<<1)|!GFXPage)		;>GFX page, palette 3 (don't worry, it should be behind layer 1 tiles, thus P bits must be 0), Y flip
 		STA.w ($0303+(2*4))|!Base2,y			;>Masker left half
 		ORA.b #%01000000				;>Xflip
