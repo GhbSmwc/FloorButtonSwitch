@@ -11,8 +11,22 @@ the setting of the sprite.
 	
 	For sprites, Have this: "02	FloorButton.json" in pixi's sprite list. Why $02? Because I was testing other sprites, and replacing every sprite
 	in LM is tedious.
+Notes:
+	This sprite uses 6 8x8 OAM tiles, so that the animation can be performed seamlessly:
+		-2 8x8s for the button cap that moves up and down
+		-2 8x8s for the orange-colored base frame the button cap sinks directly in to.
+		-2 8x8s for the masking 8x8 tile, so if you have the switch sprite in front of a scenery and do not want the button cap to poke through
+		 the bottom of the sprite
+	Note that this ONLY occurs when the button is anywhere in between the pressed fully and not pressed fully (essentially, when the button cap is
+	moving; pressing and unpressing animation). In such a state, instead, they use 2 OAM tile graphics that only consists of the button cap and the
+	base frame. This is an optimization technique so that it prevents OAM overdraw on the scanline (SNES cannot draw more than 280 pixels total in a
+	scanline).
 
 -Changelog
+	2023-09-15 v1.3
+		-Reduced the OAM usage down to just 2 8x8 OAM tiles when the switch is 0% or 100% pressed but not in between. This will dam the
+		 potential OAM scanline overdraw since most of the time the switch is either fully pressed or fully not.
+		-Fixed the upsidedown button being a pixel lower than it should.
 	2023-03-07 v1.2
 		-Made a minor bugfix with the upside-down floor switch having an oddly small hitbox. I also made setting the Y position of the player
 		 to be below the switch dependent on the sprite's hitbox height rather than adding by #$0010 before storing the Y position of the

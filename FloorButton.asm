@@ -26,7 +26,7 @@
 ; Recommend settings or settings you normally want: $28 ("normal" switch), $38 ("upside down normal switch").
 ;
 ;extra_byte_2: color for YXPPCCCT switch cap:
-; $00 = Palette 0 (LM row number $08, Default color: Brown)
+; $00 = Palette 0 (LM row number $08, Default color: Brown, I don't recommend using this palette for most cases because base frame changes color)
 ; $02 = Palette 1 (LM row number $09, Default color: Grey)
 ; $04 = Palette 2 (LM row number $0A, Default color: Yellow)
 ; $06 = Palette 3 (LM row number $0B, Default color: Blue)
@@ -52,9 +52,18 @@
   ; "floor" is a function that rounds a number down to an integer (7/8 = 0.875 -> 0)
   ; And what flag within a byte is simply [FlagNumber % 8] where the "%" represents a modulo operator
 ;Settings
- !Tile_ButtonCap = $85			;>tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
- !Tile_ButtonBaseFrame = $86		;>Tile that is the base frame of the switch, the orange part the button cap sinks into
- !Tile_ButtonMasker = $87		;>The part of the switch the button cap sits on (mostly covered by layer 1 unless 0LHUSBDP's B bit is set.)
+
+
+ ;Thse are when the button cap is anywhere in between the pressed and unpressed positions; i.e the button animation.
+  !Tile_ButtonCap = $85			;>Tile to display the button (note: this tile moves up and down to display non-pressed and pressed states)
+  !Tile_ButtonBaseFrame = $86		;>Tile that is the base frame of the switch, the orange part the button cap sinks into (NOTE: Button cap and base frame are seperate, but together when 0% or 100% pressed)
+  !Tile_ButtonMasker = $87		;>The part of the switch the button cap sits on.
+
+ ;When the switch is at 0% or 100% pressed, excluding in between, the sprite will only use/display 2 8x8 tiles showing the not pressed/fully pressed graphic
+ ;to avoid a potential bug that is due to the 35-tiles-per-scanline limit. NOTE: This is the button cap and the base frame 8x8 tile being MERGED.
+  !Tile_ButtonCapNotPressed = $95	;>Tile number to display when switch is 0% pressed
+  !Tile_ButtonCapPressed = $96		;>Tile number to display when switch is 100% pressed
+ 
 
  !GFXPage = 1				;>0 = Page 0, 1 = page 1 (don't use any other values).
  !PressedTimer = 15			;>How many frames the button remains pressed before popping out (1 second is 60 frames) (use only $01-$FF).
@@ -599,6 +608,19 @@ Print "INIT ",pc
 		PHB
 		PHK
 		PLB
+		LDA !extra_byte_1,x	;\Make sprite attached to ceiling upside down not be a pixel lower
+		BIT.b #%00010000	;|
+		BEQ +			;|
+		LDA !D8,x		;|
+		SEC			;|
+		SBC #$01		;|
+		STA !D8,x		;|
+		LDA !14D4,x		;|
+		SBC #$00		;|
+		STA !14D4,x		;/
+		
+		+
+		
 		LDA #!Button_NotPressedOffset	;\So that button caps aren't position weirdly when they spawn on the screen as the player
 		STA !ButtonCapOffset,x		;/comes out of a pipe
 		LDA #$01
@@ -1080,7 +1102,9 @@ Button:
 ;Graphics routine (JSR)
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
+GFXPressedNotPressedGfx:
+	db !Tile_ButtonCapNotPressed
+	db !Tile_ButtonCapPressed
 HandleGFX:
 	;Note to self:
 	;An OAM slot at higher indexes appears behind ones that lower indexes.
@@ -1105,6 +1129,18 @@ HandleGFX:
 	;SlotOffset = 5: Button cap, right half
 	;Must draw in this order from low OAM to high OAM: Button base frame, Masker, button cap
 	;Switch base frame and cap
+	;
+	;Edit: due to an update, when switch is at 0% or 100% pressed and not in between
+	;it will only draw one part that consist 2 OAM tiles, which each acts as the switch cap
+	;and the base frame, to reduce the amount of OAM drawing on the screen.
+		;Check if the switch is not pressed or pressed, but not in between, optimizing the OAM usage
+		;so that only during the cap movement is when 6 OAM tiles are used.
+		LDA !ButtonCapOffset,x
+		CMP.b #!Button_NotPressedOffset
+		BEQ .PressedAndNotPressed
+		BMI .PressedAndNotPressed
+		CMP.b #!Button_PressedOffset
+		BPL .PressedAndNotPressed
 		.SwitchBaseXPosition
 			LDA $00				;X position
 			STA.w ($0300+(0*4))|!Base2,y	;>Base frame left half
@@ -1161,13 +1197,67 @@ HandleGFX:
 		STA.w ($0303+(4*4))|!Base2,y	;\Properties ;>Left half
 		ORA.b #%01000000		;|X-flip it
 		STA.w ($0303+(5*4))|!Base2,y	;/>Right half
+		LDA #$05			;tiles to display minus 1 = 3 (6 tiles, minus 1 = 5)
+		BRA FinishOAM
+		
+		.PressedAndNotPressed
+			LDA $00				;\X position
+			STA.w ($0300+(0*4))|!Base2,y	;|
+			CLC				;|
+			ADC #$08			;|
+			STA.w ($0300+(1*4))|!Base2,y	;/
+			LDA $01				;\Y position
+			;CLC				;|
+			;ADC #$01			;|
+			INC
+			STA.w ($0301+(0*4))|!Base2,y	;|
+			STA.w ($0301+(1*4))|!Base2,y	;/
+			
+			
+			PHY
+			LDY #$00
+			LDA !ButtonCapOffset,x
+			CMP.b #!Button_PressedOffset
+			BMI +
+			INY
+			+
+			LDA GFXPressedNotPressedGfx,y	;\Tile number
+			PLY
+			STA.w ($0302+(0*4))|!Base2,y	;|
+			STA.w ($0302+(1*4))|!Base2,y	;/
+			
+			LDA !extra_byte_2,x		;>Palette as extra byte 2
+			AND.b #%00001110		;>Ignore XY flips, page (forcibly set to 0 or 1), and priority
+			ORA.b #(%00100000|!GFXPage)	;>Force only some bits of the PP to be set (should not appear behind layers without priority.)
+			STA.w ($0303+(0*4))|!Base2,y	;\Properties ;>Left half
+			ORA.b #%01000000		;|X-flip it
+			STA.w ($0303+(1*4))|!Base2,y	;/>Right half
+			
+			LDA #$01			;>Number of tiles, minus 1
 FinishOAM:
 	LDY #$00			;tile size = 8x8
-	LDA #$05			;tiles to display minus 1 = 3 (6 tiles, minus 1 = 5)
 	JSL $01B7B3|!BankB		;
 	RTS				;
 HandleGFXUpsideDown:
 	%GetDrawInfo()			;
+	
+	LDA !ButtonCapOffset,x
+	CMP.b #!Button_NotPressedOffset
+	;BEQ .PressedAndNotPressed
+	;BMI .PressedAndNotPressed
+	BEQ +
+	BPL ++
+	+
+	JMP .PressedAndNotPressed
+	++
+	CMP.b #!Button_PressedOffset
+	;BPL .PressedAndNotPressed
+	BEQ +
+	BMI ++
+	+
+	JMP .PressedAndNotPressed
+	++
+	
 	.SwitchBaseXPosition
 		LDA $00				;X position
 		STA.w ($0300+(0*4))|!Base2,y	;>Base frame left half
@@ -1225,7 +1315,44 @@ HandleGFXUpsideDown:
 		STA.w ($0303+(4*4))|!Base2,y	;\Properties ;>Left half
 		ORA.b #%01000000		;|X-flip it
 		STA.w ($0303+(5*4))|!Base2,y	;/>Right half
-	JMP FinishOAM
+		LDY #$05
+		LDA #$05
+		JMP FinishOAM
+		
+	.PressedAndNotPressed
+		LDA $00				;\X position
+		STA.w ($0300+(0*4))|!Base2,y	;|
+		CLC				;|
+		ADC #$08			;|
+		STA.w ($0300+(1*4))|!Base2,y	;/
+		LDA $01				;\Y position
+		CLC				;|
+		ADC #$07			;|
+		STA.w ($0301+(0*4))|!Base2,y	;|
+		STA.w ($0301+(1*4))|!Base2,y	;/
+		
+		
+		PHY
+		LDY #$00
+		LDA !ButtonCapOffset,x
+		CMP.b #!Button_PressedOffset
+		BMI +
+		INY
+		+
+		LDA GFXPressedNotPressedGfx,y	;\Tile number
+		PLY
+		STA.w ($0302+(0*4))|!Base2,y	;|
+		STA.w ($0302+(1*4))|!Base2,y	;/
+		
+		LDA !extra_byte_2,x		;>Palette as extra byte 2
+		AND.b #%00001110		;>Ignore XY flips, page (forcibly set to 0 or 1), and priority
+		ORA.b #(%10100000|!GFXPage)	;>Force only some bits of the PP to be set (should not appear behind layers without priority.)
+		STA.w ($0303+(0*4))|!Base2,y	;\Properties ;>Left half
+		ORA.b #%01000000		;|X-flip it
+		STA.w ($0303+(1*4))|!Base2,y	;/>Right half
+		
+		LDA #$01			;>Number of tiles, minus 1
+		JMP FinishOAM
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Trigger switch (JSR)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
