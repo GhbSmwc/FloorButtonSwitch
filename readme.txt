@@ -21,8 +21,8 @@ Notes:
 	moving; pressing and unpressing animation). Otherwise they use 2 OAM tile graphics that only consists of the button cap and the	base frame.
 	This is an optimization technique so that it prevents OAM overdraw on the scanline (SNES cannot draw more than 280 pixels total in a scanline).
 	
-	If you want to adjust the height of the button cap's Y position, you HAVE to also edit the graphics for the not pressed and pressed tile graphics
-	else the switch kinda jumps around.
+	If you want to adjust the height of the button cap's Y position or you edit the graphic for the fully pressed and fully not pressed, you have to
+	do both the cap's Y position and the graphic else the graphic for the switch will seemingly jump around.
 
 -Changelog
 	2023-09-15 v1.3
