@@ -60,7 +60,8 @@
   !Tile_ButtonMasker = $87		;>The part of the switch the button cap sits on.
 
  ;When the switch is at 0% or 100% pressed, excluding in between, the sprite will only use/display 2 8x8 tiles showing the not pressed/fully pressed graphic
- ;to avoid a potential bug that is due to the 35-tiles-per-scanline limit. NOTE: This is the button cap and the base frame 8x8 tile being MERGED.
+ ;to avoid a potential bug that is due to the 35-tiles-per-scanline limit. NOTE: This is the button cap and the base frame 8x8 tile being MERGED. And YES,
+ ;if you edit the pressed and not-pressed Y positions, you have to edit the graphics else the graphic with jump around when transitioning animations.
   !Tile_ButtonCapNotPressed = $95	;>Tile number to display when switch is 0% pressed
   !Tile_ButtonCapPressed = $96		;>Tile number to display when switch is 100% pressed
  
@@ -282,6 +283,10 @@ macro SwitchAction()
 					LDA #!ScreenShake	;\shake timer
 					STA $1887|!addr		;/
 				endif
+				CPY #$00
+				BEQ +
+				JSL $02B9BD			;>Turn all sprites into coins
+				+
 				RTS
 		.CustomTriggersToggle		;>$03-$12, $19-$28 and $29-$38
 			if !sa1 != 0

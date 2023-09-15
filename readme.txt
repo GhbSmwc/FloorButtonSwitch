@@ -18,15 +18,19 @@ Notes:
 		-2 8x8s for the masking 8x8 tile, so if you have the switch sprite in front of a scenery and do not want the button cap to poke through
 		 the bottom of the sprite
 	Note that this ONLY occurs when the button is anywhere in between the pressed fully and not pressed fully (essentially, when the button cap is
-	moving; pressing and unpressing animation). In such a state, instead, they use 2 OAM tile graphics that only consists of the button cap and the
-	base frame. This is an optimization technique so that it prevents OAM overdraw on the scanline (SNES cannot draw more than 280 pixels total in a
-	scanline).
+	moving; pressing and unpressing animation). Otherwise they use 2 OAM tile graphics that only consists of the button cap and the	base frame.
+	This is an optimization technique so that it prevents OAM overdraw on the scanline (SNES cannot draw more than 280 pixels total in a scanline).
+	
+	If you want to adjust the height of the button cap's Y position, you HAVE to also edit the graphics for the not pressed and pressed tile graphics
+	else the switch kinda jumps around.
 
 -Changelog
 	2023-09-15 v1.3
 		-Reduced the OAM usage down to just 2 8x8 OAM tiles when the switch is 0% or 100% pressed but not in between. This will dam the
 		 potential OAM scanline overdraw since most of the time the switch is either fully pressed or fully not.
 		-Fixed the upsidedown button being a pixel lower than it should.
+		-Fixed an oversight that a Silver p-switch mode fails to turn sprites into coins.
+		-Fixed exanimation being out of sync.
 	2023-03-07 v1.2
 		-Made a minor bugfix with the upside-down floor switch having an oddly small hitbox. I also made setting the Y position of the player
 		 to be below the switch dependent on the sprite's hitbox height rather than adding by #$0010 before storing the Y position of the
