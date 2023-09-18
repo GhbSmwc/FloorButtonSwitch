@@ -12,19 +12,17 @@ the setting of the sprite.
 	For sprites, Have this: "02	FloorButton.json" in pixi's sprite list. Why $02? Because I was testing other sprites, and replacing every sprite
 	in LM is tedious.
 Notes:
-	This sprite uses 6 8x8 OAM tiles, so that the animation can be performed seamlessly:
-		-2 8x8s for the button cap that moves up and down
-		-2 8x8s for the orange-colored base frame the button cap sinks directly in to.
-		-2 8x8s for the masking 8x8 tile, so if you have the switch sprite in front of a scenery and do not want the button cap to poke through
-		 the bottom of the sprite
-	Note that this ONLY occurs when the button is anywhere in between the pressed fully and not pressed fully (essentially, when the button cap is
-	moving; pressing and unpressing animation). Otherwise they use 2 OAM tile graphics that only consists of the button cap and the	base frame.
-	This is an optimization technique so that it prevents OAM overdraw on the scanline (SNES cannot draw more than 280 pixels total in a scanline).
-	
-	If you want to adjust the height of the button cap's Y position or you edit the graphic for the fully pressed and fully not pressed, you have to
-	do both the cap's Y position and the graphic else the graphic for the switch will seemingly jump around.
+	This sprite uses each frame for every unique Y position of the button cap. If you change the Y position, you must also edit the graphic so that:
+	-No glitch tiles get displayed
+	-The Y position of its hitbox is aligned with the graphic (i.egraphic is off if Mario is a pixel off from standing on top of the switch)
 
 -Changelog
+	2023-09-17 v1.4
+		-Sprite no longer uses OAM tricks and masking but rather having each frame graphic for every Y position of the button cap. This means
+		 the button switch now ALWAYS uses 2 8x8 OAM tiles on the screen even during the moving animation of the button cap. Reason for
+		 choosing that is because it had 5 unique 8x8 tiles: The moving button cap, the base frame, the masking tile, and the fully pressed
+		 and fully unpressed graphic, and that this method, assuming you didn't adjust the height of the switch cap's range, would require 4 tiles
+		 representing a sequence of the pressing animation.
 	2023-09-15 v1.3
 		-Reduced the OAM usage down to just 2 8x8 OAM tiles when the switch is 0% or 100% pressed but not in between. This will dam the
 		 potential OAM scanline overdraw since most of the time the switch is either fully pressed or fully not.
