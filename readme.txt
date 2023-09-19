@@ -17,6 +17,10 @@ Notes:
 	-The Y position of its hitbox is aligned with the graphic (i.egraphic is off if Mario is a pixel off from standing on top of the switch)
 
 -Changelog
+	2023-09-18 v1.4.1
+		-Remove redundant code since it is now merged with the Y displacement table (this sets the sprite position of the sprite to be mounted
+		 on surfaces grid-aligned).
+		-Updated the comment mentioning the tiles it uses.
 	2023-09-17 v1.4
 		-Sprite no longer uses OAM tricks and masking but rather having each frame graphic for every Y position of the button cap. This means
 		 the button switch now ALWAYS uses 2 8x8 OAM tiles on the screen even during the moving animation of the button cap. Reason for

@@ -57,8 +57,10 @@
 
  ;Switch cap Y position limits (signed, negative numbers allowed). Please use saner values (don't use values that are too far away from $00).
  ;Pro tip: Asar allows entering hexadecimal signed numbers without using two's complement ("$FF" can be entered as "-$01", which represents "-1" in decimal), you don't
- ;need to convert. Do note if you change this, you must edit the graphics. The number of 8x8 tiles it uses is !Button_PressedOffset - !Button_NotPressedOffset + 1
- ;this means that the deeper the switch cap moves, the more tiles it uses, up to 8 since the button cap isn't that huge.
+ ;need to convert. Do note if you change this, you must edit the graphics. The number of 8x8 tiles it uses is !Button_PressedOffset - !Button_NotPressedOffset + 1, this
+ ;means that the deeper the switch cap moves, the more tiles it uses, up to 8 since the button cap isn't that huge. The graphic tiles are located under the label
+ ;"ButtonSwitchPressFrames" for every Y position.
+
  ;
  ;NOTE: These below are "inverted" when upside-down mode is used, as in, the !Button_PressedOffset refers to how far the button cap goes into the base.
   !Button_NotPressedOffset = $01	;>Y position (relative to sprite's origin) of button cap when not pressed.
@@ -595,16 +597,6 @@ Print "INIT ",pc
 		PHB
 		PHK
 		PLB
-		LDA !extra_byte_1,x	;\Make sprite attached to ceiling upside down not be a pixel lower
-		BIT.b #%00010000	;|
-		BEQ +			;|
-		LDA !D8,x		;|
-		SEC			;|
-		SBC #$01		;|
-		STA !D8,x		;|
-		LDA !14D4,x		;|
-		SBC #$00		;|
-		STA !14D4,x		;/
 		
 		+
 		
@@ -667,7 +659,7 @@ Print "INIT ",pc
 
 	SwitchSpriteYSpawnOffset:
 	db $08-1		;Sprites appear 1 pixel lower than their original Y position.
-	db $F8
+	db $F7
 	SwitchSpriteYSpawnOffsetHigh:
 	db $00
 	db $FF
